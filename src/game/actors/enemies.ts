@@ -68,6 +68,7 @@ export abstract class Enemy extends Actor {
   protected voice() {}
   protected onAlert() {}
   protected onDamaged() {}
+  protected rigFear() { return 0 }
   protected deathSound: SoundKind = 'death'
   protected onStrike(_a: AttackDef) {}
   protected onAttackEnd() {}
@@ -497,7 +498,7 @@ export abstract class Enemy extends Actor {
       if (this.state === 'special') clip = null
     }
     const fwd = this.speedNow > 0.1 ? (this.desire.x * this.fx + this.desire.z * this.fz) / this.speedNow : 1
-    this.rig.update(dt, { speed: this.state === 'attack' ? 0 : this.speedNow, forward: fwd, clip, t: ct, time: w.time, snap: this.snapFor() })
+    this.rig.update(dt, { speed: this.state === 'attack' ? 0 : this.speedNow, forward: fwd, clip, t: ct, time: w.time, snap: this.snapFor(), fear: this.rigFear() })
     this.syncRig()
     this.updateVisibility(dt)
   }
@@ -775,6 +776,9 @@ export class Wolf extends Enemy {
   }
   protected onDamaged() {
     this.emit('wolf_hurt', 'threat', 0.6, 0.85)
+  }
+  protected rigFear() {
+    return this.alive && (this.state === 'hurt' || this.state === 'stagger' || this.state === 'stun' || this.state === 'pulled' || this.state === 'finished') ? 1 : 0
   }
   update(dt: number) {
     super.update(dt)

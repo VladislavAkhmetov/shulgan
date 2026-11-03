@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "assets:ubyr": "node tools/ubyr-rig.mjs",
     "assets:wolf": "node tools/wolf-export.mjs",
+    "check:wolf": "node tools/wolf-motion-check.mjs",
     "format": "oxfmt"
   },
   "dependencies": {

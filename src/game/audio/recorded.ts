@@ -55,7 +55,7 @@ export class RecordedVoices<Kind extends string> {
           this.onBufferReady(name)
         }
       } catch (error) {
-        if (!this.abort.signal.aborted) console.warn(`${config.folder} audio ${name}: procedural fallback`, error)
+        if (!this.abort.signal.aborted) console.warn(`${config.folder} audio ${name}: recording unavailable`, error)
       }
     })).then(() => {})
   }

@@ -222,6 +222,7 @@ export class Game implements World {
     }
     // shadow budget: tiny details stop casting (characters, story props)
     this.scene.updateMatrixWorld(true)
+    this.setupEnvironmentAudio()
     let trimmed = trimShadows(this.player.rig.root) + trimShadows(this.level.root)
     for (const e of this.enemies) trimmed += trimShadows(e.rig.root, e.kind === 'boss' ? 0.2 : 0.14)
     assignShadowLayers(this.level.root)
@@ -239,6 +240,37 @@ export class Game implements World {
     hud.set({ loadingText: '' })
     this.last = performance.now()
     this.raf = requestAnimationFrame(this.frame)
+  }
+
+  private setupEnvironmentAudio() {
+    const trees: THREE.Vector3[] = [], bushes: THREE.Vector3[] = []
+    const matrix = new THREE.Matrix4()
+    // Instances retain the actual planted locations, including the dressed forest edge.
+    this.level.root.traverse((object) => {
+      if (!(object instanceof THREE.InstancedMesh)) return
+      const tree = /^(spruce|pine|birch|dead)/.test(object.name)
+      if (!tree && object.name !== 'bush') return
+      for (let i = 0; i < object.count; i++) {
+        object.getMatrixAt(i, matrix)
+        const pos = new THREE.Vector3().setFromMatrixPosition(matrix).applyMatrix4(object.matrixWorld)
+        pos.y += tree ? 2.5 : 0.2
+        ;(tree ? trees : bushes).push(pos)
+      }
+    })
+    this.audio.setEnvironment({
+      fires: [
+        ...this.level.fires.map((fire) => ({ pos: fire.pos, active: () => true, gain: 1.1 })),
+        ...this.level.braziers.map((brazier) => ({ pos: brazier.pos, active: () => brazier.lit, gain: 0.65 })),
+      ],
+      water: this.level.waterSpots,
+      spring: this.level.spring?.pos ?? null,
+      trees,
+      bushes,
+      cue: (kind, pos, volume) => this.sound(kind, pos, {
+        tone: 'neutral', strength: 0.3, id: kind, vol: volume,
+        indicate: !this.vision.sees(pos.x, pos.z),
+      }),
+    })
   }
 
   private resize() {
@@ -1257,6 +1289,8 @@ export class Game implements World {
     this.updateCamera(rdt)
     this.feedVisionLight(rdt)
     this.vision.update(this.player.pos.x, this.player.pos.z, this.player.gaze, rdt)
+    this.audio.setListener(this.player.pos, CAM_YAW)
+    this.audio.updateEnvironment(rdt)
   }
 
   private update(rdt: number) {
@@ -1361,7 +1395,6 @@ export class Game implements World {
   private zoneCard: { id: number; name: string; sub: string } | null = null
   private zoneT = 0
   private cryT = 4
-  private babbleT = 0
   /** one-time thoughts at the barriers */
   private barrierNoted = new Set<Barrier>()
   private combatHold = 0
@@ -1436,25 +1469,6 @@ export class Game implements World {
       const z = p.z + Math.sin(a) * r
       if (this.field.sample(x, z) > -1)
         vfx.soft.spawn({ x, y: 0.35 + Math.random() * 0.5, z, vx: 0.18, vy: 0.02, vz: 0.06, r: 0.16, g: 0.2, b: 0.27, a: 0.07, size: 3 + Math.random() * 2.5, life: 10, drag: 0, grow: 0.6 })
-    }
-    for (const f of this.level.fires) if (f.pos.distanceTo(p) < 14 && Math.random() < dt * 2.6) this.audio.play('crackle', f.pos, 0.7)
-    for (const b of this.level.braziers) if (b.lit && b.pos.distanceTo(p) < 12 && Math.random() < dt * 1.6) this.audio.play('crackle', b.pos, 0.45)
-    const s = this.level.spring
-    if (s && s.pos.distanceTo(p) < 11 && Math.random() < dt * 3) this.audio.play('water', s.pos, 0.6)
-    // the stream babbles from the nearest stretch of water
-    this.babbleT -= dt
-    if (this.babbleT <= 0) {
-      this.babbleT = 0.35 + Math.random() * 0.3
-      let best: THREE.Vector3 | null = null
-      let bd = 13
-      for (const w of this.level.waterSpots) {
-        const d = Math.hypot(w.x - p.x, w.z - p.z)
-        if (d < bd) {
-          bd = d
-          best = w
-        }
-      }
-      if (best) this.audio.play('water', best, 0.35 * (1 - bd / 13))
     }
   }
 

@@ -3,10 +3,12 @@ import { Music, type Mood } from './music'
 import { isUbyrSound, UBYR_FALLBACK, UbyrAudio, type UbyrSound } from './ubyr'
 import { isWolfSound, WOLF_FALLBACK, WolfAudio, type WolfSound } from './wolf'
 import type { SampleOutput } from './recorded'
+import { ForestAudio, isForestSound, type EnvironmentWorld, type ForestSound } from './forest'
 
 export type SoundKind =
   | UbyrSound
   | WolfSound
+  | ForestSound
   | 'chirr'
   | 'whimper'
   | 'clang'
@@ -54,7 +56,7 @@ export type SoundKind =
 
 
 /**
- * Procedural audio plus recorded creature banks. Enemy sounds are spatialised (HRTF) relative to the
+ * Procedural score/effects plus recorded creatures and environment. Sounds are spatialised (HRTF) relative to the
  * hero with the listener oriented to the camera, so "left on screen" = "left ear".
  */
 export class AudioEngine {
@@ -66,18 +68,15 @@ export class AudioEngine {
   private verb!: ConvolverNode
   private verbSend!: GainNode
   private noise!: AudioBuffer
-  private windGain!: GainNode
-  private windFilter!: BiquadFilterNode
   music: Music | null = null
   private volume = 0.8
-  private nextGust = 0
-  private nextOwl = 8
-  private nextCrack = 4
   private heartT = 0
   lowHp = 0
   private listenerPos = new THREE.Vector3()
   private ubyr: UbyrAudio | null = null
   private wolf: WolfAudio | null = null
+  private forest: ForestAudio | null = null
+  private environmentWorld: EnvironmentWorld | null = null
 
   start() {
     if (this.ctx) {
@@ -113,28 +112,23 @@ export class AudioEngine {
     const d = this.noise.getChannelData(0)
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
 
-    // wind bed
-    const wind = ctx.createBufferSource()
-    wind.buffer = this.noise
-    wind.loop = true
-    this.windFilter = ctx.createBiquadFilter()
-    this.windFilter.type = 'lowpass'
-    this.windFilter.frequency.value = 420
-    this.windFilter.Q.value = 0.7
-    this.windGain = ctx.createGain()
-    this.windGain.gain.value = 0.12
-    wind.connect(this.windFilter).connect(this.windGain).connect(this.amb)
-    wind.start()
-
     this.music = new Music(ctx, this.music_, this.verbSend, this.noise)
     this.ubyr = new UbyrAudio(ctx, (pos, vol, verb) => this.sampleOut(pos, vol, verb))
     this.wolf = new WolfAudio(ctx, (pos, vol, verb) => this.sampleOut(pos, vol, verb))
+    this.forest = new ForestAudio(ctx, (pos, vol, verb) => this.sampleOut(pos, vol, verb, this.amb))
+    if (this.environmentWorld) this.forest.setWorld(this.environmentWorld)
   }
 
   dispose() {
     this.ubyr?.dispose()
     this.wolf?.dispose()
+    this.forest?.dispose()
     void this.ctx?.close()
+  }
+
+  setEnvironment(world: EnvironmentWorld) {
+    this.environmentWorld = world
+    this.forest?.setWorld(world)
   }
 
   setMood(m: Mood) {
@@ -189,7 +183,7 @@ export class AudioEngine {
     return b
   }
 
-  private out(pos: THREE.Vector3 | null | undefined, vol: number, verb = 0.25, track?: { nodes: AudioNode[]; panner?: PannerNode }) {
+  private out(pos: THREE.Vector3 | null | undefined, vol: number, verb = 0.25, track?: { nodes: AudioNode[]; panner?: PannerNode }, bus = this.sfx) {
     const ctx = this.ctx!
     const g = ctx.createGain()
     track?.nodes.push(g)
@@ -206,7 +200,7 @@ export class AudioEngine {
       p.positionY.value = (pos.y || 0) + 1
       p.positionZ.value = pos.z
       g.connect(p)
-      p.connect(this.sfx)
+      p.connect(bus)
       if (verb > 0) {
         const s = ctx.createGain()
         track?.nodes.push(s)
@@ -214,7 +208,7 @@ export class AudioEngine {
         p.connect(s).connect(this.verbSend)
       }
     } else {
-      g.connect(this.sfx)
+      g.connect(bus)
       if (verb > 0) {
         const s = ctx.createGain()
         track?.nodes.push(s)
@@ -225,9 +219,9 @@ export class AudioEngine {
     return g
   }
 
-  private sampleOut(pos: THREE.Vector3 | null | undefined, vol: number, verb: number): SampleOutput {
+  private sampleOut(pos: THREE.Vector3 | null | undefined, vol: number, verb: number, bus = this.sfx): SampleOutput {
     const track: { nodes: AudioNode[]; panner?: PannerNode } = { nodes: [] }
-    const node = this.out(pos, vol, verb, track)
+    const node = this.out(pos, vol, verb, track, bus)
     return {
       node,
       update: () => {
@@ -321,6 +315,11 @@ export class AudioEngine {
   play(kind: SoundKind, pos?: THREE.Vector3 | null, vol = 1, emitter?: string | number) {
     const ctx = this.ctx
     if (!ctx || ctx.state !== 'running') return
+    if (isForestSound(kind)) {
+      if (pos && pos.distanceToSquared(this.listenerPos) > 22 * 22) return
+      this.forest?.play(kind, pos, vol, emitter ?? kind)
+      return
+    }
     if (isUbyrSound(kind)) {
       if (pos && pos.distanceToSquared(this.listenerPos) > 42 * 42) return
       if (this.ubyr?.play(kind, pos, vol, emitter)) return
@@ -649,33 +648,17 @@ export class AudioEngine {
 
   // ------------------------------------------------------------ ambience
 
+  updateEnvironment(dt: number) {
+    if (this.ctx?.state !== 'running') return
+    this.forest?.updateWorld(dt, this.listenerPos, this.music?.mood ?? 'explore')
+  }
+
   update(dt: number) {
     const ctx = this.ctx
     if (!ctx || ctx.state !== 'running') return
     this.ubyr?.update()
     this.wolf?.update()
-    const now = ctx.currentTime
-    if (now > this.nextGust) {
-      this.nextGust = now + 2 + Math.random() * 4
-      const g = 0.06 + Math.random() * 0.14
-      this.windGain.gain.setTargetAtTime(g, now, 1.2)
-      this.windFilter.frequency.setTargetAtTime(250 + g * 2200, now, 1.5)
-    }
-    const lp = this.listenerPos
-    const mood = this.music?.mood ?? 'explore'
-    if (now > this.nextOwl && (mood === 'explore' || mood === 'tension')) {
-      this.nextOwl = now + 18 + Math.random() * 25
-      const a = Math.random() * Math.PI * 2
-      const p = new THREE.Vector3(lp.x + Math.cos(a) * 25, 6, lp.z + Math.sin(a) * 25)
-      const o = this.out(p, 0.5, 0.9)
-      this.tone(o, now, { f: 390, f2: 370, dur: 0.45, gain: 0.25, a: 0.05, vib: 4 })
-      this.tone(o, now + 0.6, { f: 350, f2: 330, dur: 0.7, gain: 0.22, a: 0.05, vib: 4 })
-    }
-    if (now > this.nextCrack) {
-      this.nextCrack = now + 6 + Math.random() * 10
-      const a = Math.random() * Math.PI * 2
-      this.play('crack', new THREE.Vector3(lp.x + Math.cos(a) * 18, 0, lp.z + Math.sin(a) * 18), 0.35)
-    }
+    this.updateEnvironment(dt)
     this.music?.update()
     if (this.lowHp > 0.5) {
       this.heartT -= dt

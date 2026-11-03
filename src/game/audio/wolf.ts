@@ -15,7 +15,7 @@ export class WolfAudio extends RecordedVoices<WolfSound> {
         howl: ['howl-1', 'howl-2'],
         growl: ['growl-1', 'growl-2', 'growl-3'],
         bark: ['bark-1', 'bark-2', 'bark-3'],
-        hurt: ['hurt-rasp-1', 'hurt-rasp-2', 'hurt-rasp-3'],
+        hurt: ['hurt-malamute-1', 'hurt-malinois-1', 'hurt-malinois-2', 'hurt-malinois-3'],
         death: ['death-rasp-1', 'death-rasp-2'],
       },
       variation: 0.01,

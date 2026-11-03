@@ -21,7 +21,7 @@ const MARTEN_POSES: Record<string, [MartenPose, number, number]> = {
   поворот: ['stand', 4, 1.6],
 }
 
-const WOLF_POSES = ['стоит', 'шаг', 'галоп', 'атака', 'ранение', 'оглушение', 'смерть']
+const WOLF_POSES = ['стоит', 'шаг', 'галоп', 'поворот влево', 'поворот вправо', 'атака', 'ранение', 'оглушение', 'испуг', 'смерть']
 
 /**
  * Asset check at /#viewer (the hero) or /#viewer=<name> (public/models/<name>.glb): even studio light,
@@ -92,7 +92,7 @@ export function ModelViewer({ src = 'hero_rig' }: { src?: string }) {
       })
       api.current = {
         setOutfit: () => {},
-        play: (pose) => { preview.pose = pose; preview.elapsed = 0 },
+        play: (pose) => { preview.pose = pose; preview.elapsed = 0; preview.rig.root.rotation.y = 0 },
       }
       skeletonToggle.current = () => {
         if (preview.helper) { scene.remove(preview.helper); preview.helper = null }
@@ -210,7 +210,9 @@ export function ModelViewer({ src = 'hero_rig' }: { src?: string }) {
         wolf.elapsed += dt
         let action: Clip | null = null
         let t = 0
-        let speed = wolf.pose === 'шаг' ? 1.5 : wolf.pose === 'галоп' ? 6.5 : 0
+        const turn = wolf.pose === 'поворот влево' ? 1.8 : wolf.pose === 'поворот вправо' ? -1.8 : 0
+        const speed = wolf.pose === 'шаг' ? 1.5 : wolf.pose === 'галоп' || turn ? 6.5 : 0
+        wolf.rig.root.rotation.y += turn * dt
         if (wolf.pose === 'атака') {
           const n = (wolf.elapsed % 2.1) / 1.2
           if (n <= 0.38) { action = WOLF_CLIPS.crouch; t = n / 0.38 }
@@ -223,7 +225,8 @@ export function ModelViewer({ src = 'hero_rig' }: { src?: string }) {
         } else if (wolf.pose === 'смерть') {
           action = WOLF_CLIPS.death; t = Math.min(wolf.elapsed, 1)
         }
-        wolf.rig.update(dt, { speed, clip: action, t, time: clock.elapsedTime })
+        const fear = wolf.pose === 'испуг' || wolf.pose === 'оглушение' || (wolf.pose === 'ранение' && action === WOLF_CLIPS.hurt) ? 1 : 0
+        wolf.rig.update(dt, { speed, clip: action, t, time: clock.elapsedTime, fear })
       }
       controls.update()
       renderer.render(scene, camera)

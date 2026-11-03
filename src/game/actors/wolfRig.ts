@@ -6,6 +6,7 @@ import { rimMaterial } from '../render/materials'
 import { clamp } from '../util'
 import { createWolf, WOLF_CLIPS } from './models'
 import { Rig, type Clip, type RigState, type Spring, type V3 } from './rig'
+import { WolfMotion } from './wolfMotion'
 
 let template: Promise<GLTF> | null = null
 
@@ -14,6 +15,7 @@ export class WolfRig extends Rig {
   readonly ready: Promise<boolean>
   private fallback = createWolf()
   private mixer: THREE.AnimationMixer | null = null
+  private motion: WolfMotion | null = null
   private actions: Record<string, THREE.AnimationAction> = {}
   private weights: Record<string, number> = {}
   private gait = Math.random()
@@ -87,6 +89,7 @@ export class WolfRig extends Rig {
     model.traverse((object) => { object.layers.mask = this.root.layers.mask })
     assignShadowLayers(model)
     this.root.add(model)
+    this.motion = new WolfMotion(model, this.root)
     this.root.remove(this.fallback.root)
     const geometries = new Set<THREE.BufferGeometry>()
     const materials = new Set<THREE.Material>()
@@ -119,8 +122,8 @@ export class WolfRig extends Rig {
     this.previousClip = clip
     this.previousTime = n
     this.idleTime += dt
-    let name = 'idle'
-    let time = this.idleTime % this.actions.idle.getClip().duration
+    let name = (state.fear ?? 0) > 0.5 ? 'idle_low' : 'idle'
+    let time = this.idleTime % this.actions[name].getClip().duration
     if (clip === WOLF_CLIPS.crouch) {
       name = 'attack'
       time = THREE.MathUtils.lerp(0.15, 0.55, n)
@@ -157,7 +160,9 @@ export class WolfRig extends Rig {
       action.setEffectiveWeight(this.weights[key] / total)
       if (key === name) action.time = clamp(time, 0, action.getClip().duration - 0.00001)
     }
+    this.motion?.restore()
     this.mixer.update(0)
+    this.motion?.update(dt, state, this.gait)
     this.hit = Math.max(0, this.hit - dt * 7)
     const warning = this.eyeBoost * 0.12
     for (const mat of this.flashMats) mat.emissive.setRGB(

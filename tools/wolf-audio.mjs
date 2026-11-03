@@ -1,11 +1,12 @@
 // Build the natural wolf voice bank from decoded, mono PCM16 source WAVs.
-// node tools/wolf-audio.mjs <source-directory>
+// node tools/wolf-audio.mjs <source-directory> [--hurt-only]
 // Provenance and source ranges: public/audio/wolf/CREDITS.md.
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const directory = process.argv[2]
+const hurtOnly = process.argv.includes('--hurt-only')
 if (!directory) throw new Error('Usage: node tools/wolf-audio.mjs <source-directory>')
 const output = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public/audio/wolf')
 await mkdir(output, { recursive: true })
@@ -34,16 +35,21 @@ const jobs = [
   ['howl-1', 'howl', 13.25, 18.1], ['howl-2', 'howl', 19.9, 24.65],
   ['growl-1', 'growl', 1.5, 3.6], ['growl-2', 'growl', 4.25, 5.55], ['growl-3', 'growl', 6.8, 8.35],
   ['bark-1', 'growl', 12.25, 13.15], ['bark-2', 'growl', 13.4, 14.1], ['bark-3', 'growl', 14.35, 15.15],
-  ['hurt-rasp-1', 'grunt', 2.05, 2.62], ['hurt-rasp-2', 'grunt', 2.35, 2.93], ['hurt-rasp-3', 'growl', 3.02, 3.55],
+  ['hurt-malamute-1', 'malamute', 0, 2.526875],
+  ['hurt-malinois-1', 'malinois', 5.94, 6.75], ['hurt-malinois-2', 'malinois', 14.93, 15.73], ['hurt-malinois-3', 'malinois', 20.22, 21.04],
   ['death-rasp-1', 'grunt', 2.0, 3.02], ['death-rasp-2', 'growl', 3.0, 4.1],
 ]
 let total = 0
+let count = 0
 for (const [name, file, from, to] of jobs) {
+  if (hurtOnly && !name.startsWith('hurt-')) continue
   const source = readWav(await readFile(path.resolve(directory, file + '.wav')))
+  if (source.length < Math.round(to * RATE)) throw new Error(`${file}: source shorter than ${to}s`)
   const data = source.slice(Math.round(from * RATE), Math.round(to * RATE))
   // Remove rumble and phone hiss gently. No pitch change, distortion, synthetic layers or time stretching.
   let low = 0, top = 0
-  const highpass = 1 - Math.exp(-2 * Math.PI * 65 / RATE), lowpass = 1 - Math.exp(-2 * Math.PI * 8500 / RATE)
+  const highpass = file === 'malinois' ? 0.026 : 1 - Math.exp(-2 * Math.PI * 65 / RATE)
+  const lowpass = file === 'malinois' ? 0.58 : 1 - Math.exp(-2 * Math.PI * 8500 / RATE)
   let peak = 0, energy = 0
   const attack = name.startsWith('howl') ? 0.12 : 0.012
   const release = name.startsWith('death') ? 0.28 : name.startsWith('howl') ? 0.2 : 0.065
@@ -55,11 +61,12 @@ for (const [name, file, from, to] of jobs) {
   }
   const rms = Math.sqrt(energy / data.length)
   if (rms < 0.001) throw new Error(`${name}: empty selection`)
-  const gain = Math.min(0.15 / rms, 0.8 / peak)
+  const gain = Math.min((name.startsWith('hurt-') ? 0.14 : 0.15) / rms, 0.8 / peak)
   for (let i = 0; i < data.length; i++) data[i] *= gain
   const bytes = writeWav(data)
   await writeFile(path.join(output, name + '.wav'), bytes)
   total += bytes.length
+  count++
   console.log(`${name}: ${(data.length / RATE).toFixed(2)} s`)
 }
-console.log(`Total: ${(total / 1024).toFixed(0)} KiB, ${jobs.length} mono recordings`)
+console.log(`Total: ${(total / 1024).toFixed(0)} KiB, ${count} mono recordings`)

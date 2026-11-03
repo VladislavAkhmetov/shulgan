@@ -72,6 +72,8 @@ export interface RigState {
   side?: number
   /** head/torso yaw offset toward where the character is looking (radians) */
   look?: number
+  /** 0..1 defensive/cowering posture during injury recovery. */
+  fear?: number
   clip?: Clip | null
   t?: number
   weight?: number
