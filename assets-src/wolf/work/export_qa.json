@@ -1,0 +1,208 @@
+{
+  "original": {
+    "skins": [
+      {
+        "joints": 48
+      }
+    ],
+    "meshes": [
+      {
+        "name": "node_0",
+        "triangles": 49922
+      }
+    ],
+    "animations": [
+      {
+        "name": "idle",
+        "channels": 144,
+        "duration": 3.3333332538604736
+      },
+      {
+        "name": "idle_look",
+        "channels": 144,
+        "duration": 3.3333332538604736
+      },
+      {
+        "name": "idle_low",
+        "channels": 144,
+        "duration": 4
+      },
+      {
+        "name": "walk",
+        "channels": 144,
+        "duration": 1.0416666269302368
+      },
+      {
+        "name": "run",
+        "channels": 144,
+        "duration": 0.5416666865348816
+      },
+      {
+        "name": "run_jump",
+        "channels": 144,
+        "duration": 0.9166666865348816
+      },
+      {
+        "name": "jump",
+        "channels": 144,
+        "duration": 1.3333333730697632
+      },
+      {
+        "name": "attack",
+        "channels": 144,
+        "duration": 1.3333333730697632
+      },
+      {
+        "name": "hit_left",
+        "channels": 144,
+        "duration": 0.6666666865348816
+      },
+      {
+        "name": "hit_right",
+        "channels": 144,
+        "duration": 0.6666666865348816
+      },
+      {
+        "name": "death",
+        "channels": 144,
+        "duration": 1.0416666269302368
+      },
+      {
+        "name": "eat",
+        "channels": 144,
+        "duration": 2.5
+      }
+    ],
+    "textures": [
+      {
+        "name": "texture_pbr_20250901_normal",
+        "size": [
+          4096,
+          4096
+        ],
+        "bytes": 14022156
+      },
+      {
+        "name": "texture_pbr_20250901",
+        "size": [
+          4096,
+          4096
+        ],
+        "bytes": 18895966
+      },
+      {
+        "name": "texture_pbr_20250901_metallic-texture_pbr_20250901_roughness",
+        "size": [
+          4096,
+          4096
+        ],
+        "bytes": 10503387
+      }
+    ]
+  },
+  "game": {
+    "skins": [
+      {
+        "joints": 48
+      }
+    ],
+    "meshes": [
+      {
+        "name": "node_0",
+        "triangles": 13270
+      }
+    ],
+    "animations": [
+      {
+        "name": "idle",
+        "channels": 144,
+        "duration": 3.3333332538604736
+      },
+      {
+        "name": "idle_look",
+        "channels": 144,
+        "duration": 3.3333332538604736
+      },
+      {
+        "name": "idle_low",
+        "channels": 144,
+        "duration": 4
+      },
+      {
+        "name": "walk",
+        "channels": 144,
+        "duration": 1.0416666269302368
+      },
+      {
+        "name": "run",
+        "channels": 144,
+        "duration": 0.5416666865348816
+      },
+      {
+        "name": "run_jump",
+        "channels": 144,
+        "duration": 0.9166666865348816
+      },
+      {
+        "name": "jump",
+        "channels": 144,
+        "duration": 1.3333333730697632
+      },
+      {
+        "name": "attack",
+        "channels": 144,
+        "duration": 1.3333333730697632
+      },
+      {
+        "name": "hit_left",
+        "channels": 144,
+        "duration": 0.6666666865348816
+      },
+      {
+        "name": "hit_right",
+        "channels": 144,
+        "duration": 0.6666666865348816
+      },
+      {
+        "name": "death",
+        "channels": 144,
+        "duration": 1.0416666269302368
+      },
+      {
+        "name": "eat",
+        "channels": 144,
+        "duration": 2.5
+      }
+    ],
+    "textures": [
+      {
+        "name": "texture_pbr_20250901_normal",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 188196
+      },
+      {
+        "name": "texture_pbr_20250901",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 203904
+      },
+      {
+        "name": "texture_pbr_20250901_metallic-texture_pbr_20250901_roughness",
+        "size": [
+          1024,
+          1024
+        ],
+        "bytes": 60172
+      }
+    ]
+  },
+  "gameBytes": 2028396,
+  "unweighted": 0,
+  "maxWeightError": 1.3888347893953323e-7,
+  "nonfinite": 0
+}

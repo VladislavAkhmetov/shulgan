@@ -1,0 +1,128 @@
+{
+  "armatures": [
+    {
+      "name": "Volk_Rig",
+      "bones": 48
+    }
+  ],
+  "actions": [
+    {
+      "name": "Volk_Rig|attack",
+      "frames": [
+        1.0,
+        33.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|death",
+      "frames": [
+        1.0,
+        26.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|eat",
+      "frames": [
+        1.0,
+        61.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|hit_left",
+      "frames": [
+        1.0,
+        17.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|hit_right",
+      "frames": [
+        1.0,
+        17.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|idle",
+      "frames": [
+        1.0,
+        81.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|idle_look",
+      "frames": [
+        1.0,
+        81.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|idle_low",
+      "frames": [
+        1.0,
+        97.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|jump",
+      "frames": [
+        1.0,
+        33.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|run",
+      "frames": [
+        1.0,
+        14.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|run_jump",
+      "frames": [
+        1.0,
+        23.0
+      ]
+    },
+    {
+      "name": "Volk_Rig|walk",
+      "frames": [
+        1.0,
+        26.0
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "name": "texture_pbr_20250901.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "texture_pbr_20250901_metallic.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "texture_pbr_20250901_normal.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "texture_pbr_20250901_roughness.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    }
+  ]
+}

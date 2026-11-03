@@ -1,0 +1,103 @@
+{
+  "meshes": [
+    {
+      "name": "node_0",
+      "primitives": [
+        {
+          "vertices": 45391,
+          "triangles": 49922,
+          "min": [
+            -0.005910439882427454,
+            0,
+            -0.0010017900494858623
+          ],
+          "max": [
+            0.005931899882853031,
+            0.00499550998210907,
+            0.0010184700367972255
+          ],
+          "attributes": [
+            "NORMAL",
+            "POSITION",
+            "TANGENT",
+            "TEXCOORD_0"
+          ],
+          "material": "Material"
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "name": "RootNode",
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "children": [
+        "node_0"
+      ]
+    },
+    {
+      "name": "node_0",
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        -3.77489506320217e-8,
+        0,
+        0,
+        1
+      ],
+      "scale": [
+        100,
+        100,
+        100
+      ],
+      "children": [],
+      "mesh": "node_0"
+    }
+  ],
+  "skins": [],
+  "animations": [],
+  "textures": [
+    {
+      "name": "texture_pbr_20250901_normal.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "bytes": 14022156
+    },
+    {
+      "name": "ao_met_rough_texture_pbr_20250901_roughness",
+      "size": [
+        4096,
+        4096
+      ],
+      "bytes": 459365
+    },
+    {
+      "name": "texture_pbr_20250901.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "bytes": 18895966
+    }
+  ]
+}

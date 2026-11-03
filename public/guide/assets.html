@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Мастерская Урмана — как делать героев и вещи</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Forum&family=Alegreya+Sans:wght@400;500;700&family=Alegreya:ital@1&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #f5efe3;
+    --card: #fffdf8;
+    --ink: #2a2420;
+    --soft: #6b6058;
+    --line: #e4d9c6;
+    --ochre: #a4452c;
+    --amber: #d4862c;
+    --blue: #23395d;
+    --green: #3f7a52;
+    --tint: #fbf3e4;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 19px/1.6 'Alegreya Sans', system-ui, sans-serif; }
+  h1, h2, h3 { font-family: 'Forum', serif; font-weight: 400; line-height: 1.15; margin: 0; }
+  a { color: var(--ochre); }
+  .layout { display: grid; grid-template-columns: 270px 1fr; max-width: 1240px; margin: 0 auto; }
+  nav { position: sticky; top: 0; height: 100vh; overflow: auto; padding: 32px 20px 32px 28px; border-right: 1px solid var(--line); }
+  nav .brand { font-family: 'Forum', serif; font-size: 26px; line-height: 1.1; }
+  nav .brand small { display: block; font-family: 'Alegreya Sans'; font-size: 14px; color: var(--soft); margin-top: 6px; }
+  nav ol { list-style: none; padding: 0; margin: 26px 0 0; counter-reset: s; }
+  nav li { counter-increment: s; }
+  nav li a { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; color: var(--ink); text-decoration: none; font-size: 17px; }
+  nav li a::before { content: counter(s); flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--line); color: var(--ink); font-size: 13px; font-weight: 700; display: grid; place-items: center; }
+  nav li a:hover { color: var(--ochre); }
+  .progress { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 15px; color: var(--soft); }
+  .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 8px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--green); transition: width .3s; }
+  main { padding: 48px 56px 120px; max-width: 900px; }
+  section { margin-bottom: 72px; }
+  .kicker { font-size: 14px; font-weight: 700; color: var(--ochre); letter-spacing: .06em; text-transform: uppercase; }
+  h1 { font-size: 54px; margin: 8px 0 16px; }
+  h2 { font-size: 38px; margin: 6px 0 14px; }
+  h3 { font-size: 26px; }
+  p { margin: 0 0 14px; }
+  .lead { font-size: 22px; color: var(--soft); }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 24px; margin: 18px 0; }
+  .why { background: var(--tint); border-left: 4px solid var(--amber); border-radius: 0 12px 12px 0; padding: 14px 18px; margin: 16px 0; }
+  .why b:first-child { color: var(--ochre); }
+  .warn { background: #fbeae4; border-left: 4px solid var(--ochre); border-radius: 0 12px 12px 0; padding: 14px 18px; margin: 16px 0; }
+  .steps { counter-reset: st; list-style: none; padding: 0; margin: 14px 0; }
+  .steps > li { counter-increment: st; position: relative; padding: 0 0 18px 52px; }
+  .steps > li::before { content: counter(st); position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--blue); color: #fff; font-weight: 700; display: grid; place-items: center; }
+  .steps > li > b { display: block; font-size: 20px; }
+  .steps .note { color: var(--soft); font-size: 17px; }
+  kbd, .btnname { display: inline-block; padding: 1px 8px; border: 1px solid #cdbfa8; border-bottom-width: 2px; border-radius: 6px; background: #fff; font: 600 16px 'Alegreya Sans'; white-space: nowrap; }
+  .pipe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 22px 0; }
+  .pipe div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 12px; text-align: center; position: relative; }
+  .pipe div:not(:last-child)::after { content: '→'; position: absolute; right: -14px; top: 50%; transform: translateY(-50%); color: var(--amber); font-size: 22px; z-index: 1; }
+  .pipe b { display: block; font-family: 'Forum'; font-size: 21px; font-weight: 400; }
+  .pipe span { font-size: 14px; color: var(--soft); line-height: 1.35; display: block; margin-top: 4px; }
+  .pipe em { display: inline-block; font-style: normal; width: 30px; height: 30px; border-radius: 50%; background: var(--amber); color: #fff; font-weight: 700; line-height: 30px; margin-bottom: 6px; }
+  .rules { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .rules .box { margin: 0; }
+  .rules b { display: block; font-size: 20px; margin-bottom: 4px; }
+  .rules span { color: var(--soft); font-size: 17px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 17px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 14px; color: var(--soft); font-weight: 700; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 15px; background: #efe6d6; padding: 1px 6px; border-radius: 5px; }
+  /* asset cards */
+  details.asset { background: var(--card); border: 1px solid var(--line); border-radius: 16px; margin: 14px 0; overflow: hidden; }
+  details.asset[open] { box-shadow: 0 6px 24px rgba(60, 40, 20, .08); }
+  details.asset > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 14px; padding: 16px 20px; }
+  details.asset > summary::-webkit-details-marker { display: none; }
+  .chev { margin-left: auto; color: var(--soft); transition: transform .2s; }
+  details[open] .chev { transform: rotate(90deg); }
+  .done-box { width: 26px; height: 26px; accent-color: var(--green); flex: none; cursor: pointer; }
+  .asset .title { font-family: 'Forum'; font-size: 25px; line-height: 1.1; }
+  .asset .sub { font-size: 15px; color: var(--soft); }
+  .tag { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 99px; white-space: nowrap; }
+  .t-first { background: #f6dccf; color: var(--ochre); }
+  .t-later { background: #e5ecf5; color: var(--blue); }
+  .t-maybe { background: #ece8e1; color: var(--soft); }
+  .t-done { background: #dcefe2; color: var(--green); }
+  .asset.is-done .title { color: var(--soft); text-decoration: line-through; text-decoration-color: var(--green); }
+  .asset .body { padding: 0 24px 22px; border-top: 1px solid var(--line); }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 16px 0 6px; font-size: 16px; color: var(--soft); }
+  .facts b { color: var(--ink); }
+  .prompt { position: relative; background: #2a2420; color: #f3ead9; border-radius: 12px; padding: 18px 20px 16px; margin: 14px 0; font-size: 17px; line-height: 1.55; white-space: pre-wrap; }
+  .prompt .what { color: #fff; }
+  .prompt .common { color: #b7a891; }
+  .prompt .lbl { display: block; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #e8a65a; margin-bottom: 6px; }
+  .copy { position: absolute; top: 12px; right: 12px; border: 0; border-radius: 8px; background: var(--amber); color: #fff; font: 700 15px 'Alegreya Sans'; padding: 7px 14px; cursor: pointer; }
+  .copy.ok { background: var(--green); }
+  .tips { margin: 10px 0 0; padding-left: 20px; }
+  .tips li { margin: 4px 0; }
+  .views { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0; }
+  .views span { background: #efe6d6; border-radius: 8px; padding: 4px 10px; font-size: 15px; }
+  .grouphead { margin: 34px 0 6px; display: flex; align-items: baseline; gap: 12px; }
+  .grouphead p { margin: 0; color: var(--soft); font-size: 16px; }
+  .figure { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .figure svg { flex: none; }
+  .legend div { display: flex; gap: 10px; align-items: center; margin: 6px 0; font-size: 17px; }
+  .dot { width: 16px; height: 16px; border-radius: 50%; flex: none; }
+  .anim { columns: 2; column-gap: 28px; padding-left: 0; list-style: none; margin: 10px 0; }
+  .anim li { break-inside: avoid; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 16px; }
+  .anim code { font-size: 14px; }
+  .anim small { display: block; color: var(--soft); }
+  .gloss dt { font-weight: 700; margin-top: 10px; }
+  .gloss dd { margin: 0 0 0 0; color: var(--soft); }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+    main { padding: 28px 20px 80px; }
+    .pipe, .rules { grid-template-columns: 1fr; }
+    .pipe div::after { display: none; }
+    .anim { columns: 1; }
+    h1 { font-size: 40px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <div class="brand">Мастерская Урмана<small>Как сделать героев, зверей и вещи для игры «Аманат»</small></div>
+    <ol>
+      <li><a href="#start">С чего начать</a></li>
+      <li><a href="#rules">Пять главных правил</a></li>
+      <li><a href="#image">Картинка в GPT Image</a></li>
+      <li><a href="#angles">Другие ракурсы</a></li>
+      <li><a href="#hunyuan">3D в Hunyuan</a></li>
+      <li><a href="#heroes">Персонажи</a></li>
+      <li><a href="#timer">Тимер: одежда и вещи</a></li>
+      <li><a href="#world">Окружение и быт</a></li>
+      <li><a href="#mixamo">Mixamo: оживляем</a></li>
+      <li><a href="#send">Как назвать и прислать</a></li>
+      <li><a href="#oops">Если что-то не так</a></li>
+      <li><a href="#words">Словарик</a></li>
+    </ol>
+    <div class="progress">
+      Готово: <b id="pcount">0</b> из <b id="ptotal">0</b>
+      <div class="bar"><i id="pbar"></i></div>
+      <div style="margin-top:8px;font-size:13px">Ставь галочку у каждой готовой вещи. Браузер запомнит.</div>
+    </div>
+  </nav>
+
+  <main>
+    <!-- 1 -->
+    <section id="start">
+      <div class="kicker">Привет, мастер</div>
+      <h1>Делаем героев и вещи для урмана</h1>
+      <p class="lead">Ты будешь превращать слова в картинки, картинки в 3D-модели, а модели в живых персонажей. Здесь всё по шагам. Не спеши: делай по одной вещи.</p>
+
+      <h3 style="margin-top:28px">Путь каждой вещи</h3>
+      <div class="pipe">
+        <div><em>1</em><b>Картинка</b><span>GPT Image рисует вид спереди по промпту</span></div>
+        <div><em>2</em><b>Ракурсы</b><span>Та же вещь сбоку и сзади</span></div>
+        <div><em>3</em><b>3D</b><span>Hunyuan 3D делает модель из картинок</span></div>
+        <div><em>4</em><b>Mixamo</b><span>Только для людей: скелет и движения</span></div>
+        <div><em>5</em><b>Прислать</b><span>Файлы с правильными именами</span></div>
+      </div>
+
+      <div class="why"><b>Что такое промпт?</b> Это задание для нейросети словами. В каждой карточке ниже уже есть готовый промпт. Нажми <span class="btnname">Скопировать</span>, вставь его в чат и отправь. Больше ничего писать не нужно.</div>
+
+      <div class="box">
+        <b>Порядок работы</b>
+        <ol style="margin:8px 0 0;padding-left:22px">
+          <li>Начни с <a href="#timer">Тимера</a> — это главный герой. Его картинка станет образцом стиля для всех остальных.</li>
+          <li>Потом персонажи с меткой <span class="tag t-first">Сначала</span>.</li>
+          <li>Потом вещи и окружение.</li>
+          <li>Mixamo — когда готова 3D-модель человека.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section id="rules">
+      <div class="kicker">Запомни</div>
+      <h2>Пять главных правил</h2>
+      <p>Эти правила нужны, чтобы модель потом можно было оживить в игре.</p>
+      <div class="rules">
+        <div class="box"><b>1. Вид строго спереди</b><span>Человек смотрит прямо на нас. Так нейросеть 3D лучше понимает форму.</span></div>
+        <div class="box"><b>2. A-поза</b><span>Руки опущены, но отведены от тела, как буква «А». Иначе рука «прилипнет» к боку.</span></div>
+        <div class="box"><b>3. Пустые руки</b><span>Оружие, фонарь и сумку делаем отдельно. Предмет в руке потом не убрать.</span></div>
+        <div class="box"><b>4. Ничего до земли</b><span>Одежда не ниже колена. Длинный плащ рвётся, когда герой бежит.</span></div>
+        <div class="box"><b>5. Серый пустой фон</b><span>Без травы, дыма и света. Так Hunyuan 3D сам вырежет персонажа.</span></div>
+        <div class="box"><b>И ещё: один стиль</b><span>Прикладывай картинку Тимера-базы как образец. Тогда все герои и вещи будут из одной игры.</span></div>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section id="image">
+      <div class="kicker">Шаг 1</div>
+      <h2>Картинка в GPT Image</h2>
+      <p>GPT Image — это рисование в ChatGPT. Ему можно писать по-русски.</p>
+      <ol class="steps">
+        <li><b>Открой новый чат</b><span class="note">Для каждого персонажа — свой чат. Так нейросеть не перепутает героев.</span></li>
+        <li><b>Приложи образец стиля</b><span class="note">Перетащи в чат картинку Тимера-базы (она в разделе <a href="#timer">«Тимер»</a>). Для комплектов одежды Тимера это обязательно.</span></li>
+        <li><b>Вставь промпт из карточки</b><span class="note">Нажми <span class="btnname">Скопировать</span> в карточке, потом вставь в чат. Если приложил образец, допиши в начале: «Нарисуй в том же стиле, что на картинке, но другого персонажа:».</span></li>
+        <li><b>Попроси вертикальную картинку</b><span class="note">Для людей допиши: «вертикальный формат». Для зверей и длинных вещей — «горизонтальный формат».</span></li>
+        <li><b>Выбери лучшую</b><span class="note">Сгенерируй 2–3 раза и выбери ту, где лучше всего видно форму. Сохрани её.</span></li>
+      </ol>
+      <div class="why"><b>Почему «3D-рендер»?</b> Нам нужна картинка, похожая на готовую 3D-модель, а не рисунок. Тогда Hunyuan 3D точнее поймёт объём, а модель получится такой же, как на картинке. Если вдруг вышел рисунок — напиши: «Сделай как игровой 3D-рендер, не рисунок».</div>
+      <div class="why"><b>Как устроен промпт?</b> Серая часть в начале говорит, что нужна 3D-модель для игры. Белая часть — кто это и <b>во что он одет</b>: она у каждого своя и самая важная. Серая часть в конце — правила позы и фона, одинаковые у всех. Копируется всё вместе.</div>
+      <div class="box">
+        <b>Если получилось не то</b>
+        <p style="margin:6px 0 0">Не переписывай всё заново. Напиши одну короткую фразу: «Убери меч из руки», «Сделай руки дальше от тела», «Фон сделай пустым светло-серым», «Подол короче, до колена». Одна правка за раз.</p>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section id="angles">
+      <div class="kicker">Шаг 2</div>
+      <h2>Другие ракурсы</h2>
+      <p>Hunyuan 3D делает модель точнее, если видит вещь с нескольких сторон. Поэтому по готовой картинке спереди делаем ещё три.</p>
+      <div class="figure box">
+        <svg width="380" height="130" viewBox="0 0 380 130" aria-label="Четыре ракурса">
+          <g fill="none" stroke="#2a2420" stroke-width="2.5" stroke-linecap="round">
+            <g transform="translate(45,0)"><circle cx="0" cy="22" r="11"/><path d="M0 33 V78 M0 44 L-22 70 M0 44 L22 70 M0 78 L-12 112 M0 78 L12 112"/></g>
+            <g transform="translate(140,0)"><circle cx="0" cy="22" r="11"/><path d="M-11 22 h-5"/><path d="M0 33 V78 M0 44 L-8 72 M0 78 L-4 112 M0 78 L5 112"/></g>
+            <g transform="translate(235,0)"><circle cx="0" cy="22" r="11" fill="#e4d9c6"/><path d="M0 33 V78 M0 44 L-22 70 M0 44 L22 70 M0 78 L-12 112 M0 78 L12 112"/></g>
+            <g transform="translate(330,0)"><circle cx="0" cy="22" r="11"/><path d="M11 22 h5"/><path d="M0 33 V78 M0 44 L8 72 M0 78 L4 112 M0 78 L-5 112"/></g>
+          </g>
+          <g font-family="Alegreya Sans" font-size="14" fill="#6b6058" text-anchor="middle">
+            <text x="45" y="128">спереди</text><text x="140" y="128">слева</text><text x="235" y="128">сзади</text><text x="330" y="128">справа</text>
+          </g>
+        </svg>
+        <div>Все четыре картинки — <b>одинакового размера</b>, в <b>той же позе</b>, на <b>том же фоне</b>.</div>
+      </div>
+      <ol class="steps">
+        <li><b>Останься в том же чате</b><span class="note">Там уже есть картинка спереди. Нейросеть будет на неё смотреть.</span></li>
+        <li><b>Скопируй промпт ракурса и отправь</b><span class="note">По одному ракурсу за раз: сначала «слева», потом «сзади», потом «справа».</span></li>
+        <li><b>Проверь мелочи</b><span class="note">Цвет кафтана, узор, пояс, шапка должны совпадать на всех четырёх картинках. Если что-то поменялось — попроси исправить.</span></li>
+      </ol>
+      <div id="angle-prompts"></div>
+      <div class="why"><b>Для зверей</b> главный вид — сбоку, потому что так видно всё тело. Для них проси «спереди», «сзади» и «сверху».</div>
+    </section>
+
+    <!-- 5 -->
+    <section id="hunyuan">
+      <div class="kicker">Шаг 3</div>
+      <h2>3D-модель в Hunyuan 3D</h2>
+      <p>Hunyuan 3D смотрит на картинки и лепит из них объёмную модель с цветом.</p>
+      <ol class="steps">
+        <li><b>Открой Hunyuan 3D</b><span class="note">Сайт Hunyuan 3D от Tencent. Если нужен вход — попроси взрослого помочь с аккаунтом.</span></li>
+        <li><b>Выбери «картинка в 3D»</b><span class="note">Кнопка может называться «Image to 3D» или «Изображение в 3D».</span></li>
+        <li><b>Загрузи ракурсы</b><span class="note">Если есть режим с несколькими видами (Multi-view), загрузи все четыре: спереди, сзади, слева, справа — каждую в своё окошко. Если такого режима нет — загрузи только вид спереди.</span></li>
+        <li><b>Включи текстуру</b><span class="note">Нужна модель с цветом, а не серая. Если можно выбрать качество — выбери самое высокое. Количество полигонов любое: уменьшать буду я.</span></li>
+        <li><b>Сгенерируй и покрути</b><span class="note">Поверни модель мышкой со всех сторон. Нет ли дыр? Не слиплись ли руки с телом? Если плохо — попробуй ещё раз или поправь картинки.</span></li>
+        <li><b>Скачай файлы</b><span class="note">Всегда <b>GLB</b>. Для людей ещё <b>FBX</b> (он нужен для Mixamo). Если FBX нет — скачай <b>OBJ</b> вместе с текстурами, или просто пришли GLB мне, я сделаю FBX сам.</span></li>
+      </ol>
+      <div class="why"><b>Что такое GLB и FBX?</b> Это просто виды файлов с 3D-моделью, как JPG и PNG для картинок. GLB нужен игре, FBX — сайту Mixamo.</div>
+    </section>
+
+    <!-- 6 -->
+    <section id="heroes">
+      <div class="kicker">Список</div>
+      <h2>Персонажи уровня</h2>
+      <p>Все, кто встречается в «Урмане». Открой карточку — внутри промпт, ракурсы, нужен ли Mixamo и как назвать файл.</p>
+      <div id="list-heroes"></div>
+    </section>
+
+    <!-- 7 -->
+    <section id="timer">
+      <div class="kicker">Главный герой</div>
+      <h2>Тимер: одежда и вещи</h2>
+      <p>Тимер собирается как кукла: <b>база</b> (лицо, руки, простая рубаха) + <b>комплект одежды</b> + <b>шапка</b> + <b>вещи</b> на поясе и в руках. Так его можно переодевать в игре.</p>
+      <div class="box figure">
+        <svg width="170" height="230" viewBox="0 0 170 230" aria-label="Из чего собран Тимер">
+          <g fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M66 26 C66 12 104 12 104 26 Z" stroke="#a4452c" fill="#f6dccf"/>
+            <circle cx="85" cy="40" r="14" stroke="#2a2420"/>
+            <path d="M62 60 H108 L114 130 H56 Z" stroke="#23395d" fill="#e5ecf5"/>
+            <path d="M62 62 L36 112 M108 62 L134 112" stroke="#23395d"/>
+            <path d="M70 130 L66 196 M100 130 L104 196" stroke="#2a2420"/>
+            <path d="M58 196 H72 V214 H56 Z M98 196 H112 V214 H96 Z" stroke="#3f7a52" fill="#dcefe2"/>
+            <path d="M140 100 L150 156" stroke="#d4862c" stroke-width="4"/>
+          </g>
+        </svg>
+        <div class="legend">
+          <div><span class="dot" style="background:#f6dccf;border:2px solid #a4452c"></span><b>Шапка</b> — отдельная вещь</div>
+          <div><span class="dot" style="border:2px solid #2a2420"></span><b>Голова и кисти</b> — всегда от базы</div>
+          <div><span class="dot" style="background:#e5ecf5;border:2px solid #23395d"></span><b>Комплект одежды</b> — от воротника до колен</div>
+          <div><span class="dot" style="background:#dcefe2;border:2px solid #3f7a52"></span><b>Сапоги</b> — обычно вместе с комплектом</div>
+          <div><span class="dot" style="background:#d4862c"></span><b>Вещи</b> — кылыс, лук, фонарь: отдельно</div>
+        </div>
+      </div>
+      <div class="box figure">
+        <img src="timer_base.jpg" alt="Тимер-база: простая рубаха, штаны, сапоги, A-поза" width="220" style="border-radius:10px;background:#ddd" />
+        <div>
+          <h3>Это база нового Тимера</h3>
+          <p style="margin-top:8px">Простая рубаха, штаны, сапоги, A-поза. От неё берутся <b>лицо, руки и скелет</b>. Всю одежду рисуем поверх неё.</p>
+          <p><b>Как делать комплект одежды:</b></p>
+          <ol style="margin:0;padding-left:22px">
+            <li>Открой новый чат.</li>
+            <li>Приложи <b>эту картинку</b> (сохрани её: правой кнопкой → «Сохранить изображение»).</li>
+            <li>Скопируй промпт комплекта и отправь.</li>
+            <li>Сравни с базой: лицо, рост и поза должны совпасть. Если нет — напиши «лицо, рост и поза точно как на картинке».</li>
+          </ol>
+        </div>
+      </div>
+      <div class="why"><b>Зачем одинаковая поза и рост?</b> В игре я беру из комплекта только одежду, а голову и руки — от базы. Если комплект нарисован в другой позе или другого роста, одежда не совпадёт с телом.</div>
+      <div class="box">
+        <b>Какая бывает одежда</b>
+        <table>
+          <tr><th>Вес</th><th>Что даёт в игре</th><th>Примеры</th></tr>
+          <tr><td>Лёгкая</td><td>Быстрые рывки, мало защиты</td><td>Кафтан беркутчи, кафтан Арслана</td></tr>
+          <tr><td>Средняя</td><td>Поровну защиты и скорости</td><td>Кожаный чекмень, тегиляй, кольчуга</td></tr>
+          <tr><td>Тяжёлая</td><td>Много защиты, рывки медленнее</td><td>Пластинчатый куяк</td></tr>
+        </table>
+      </div>
+      <div id="list-timer"></div>
+    </section>
+
+    <!-- 8 -->
+    <section id="world">
+      <div class="kicker">Мир вокруг</div>
+      <h2>Окружение и быт</h2>
+      <p>Особые вещи, которые рассказывают историю без слов. Обычные деревья, камни, траву, воду и терновник игра рисует сама — их делать <b>не нужно</b>.</p>
+      <div class="why"><b>Как рисовать вещи:</b> одна вещь, вид спереди, целиком в кадре, на сером фоне, без людей. Mixamo вещам не нужен — сразу из Hunyuan 3D скачивай GLB.</div>
+      <div id="list-world"></div>
+    </section>
+
+    <!-- 9 -->
+    <section id="mixamo">
+      <div class="kicker">Шаг 4 — только для людей</div>
+      <h2>Mixamo: оживляем персонажа</h2>
+      <p>Mixamo — бесплатный сайт. Он вставляет в модель <b>скелет</b> (кости внутри, как у нас) и даёт готовые <b>движения</b>: бег, удар, кувырок. Звери и птицы на Mixamo не работают — их я двигаю сам в коде.</p>
+
+      <h3 style="margin-top:24px">Часть 1. Вставляем скелет (один раз на персонажа)</h3>
+      <ol class="steps">
+        <li><b>Зайди на mixamo.com</b><span class="note">Нужен аккаунт Adobe, он бесплатный. Попроси взрослого помочь войти.</span></li>
+        <li><b>Нажми <span class="btnname">Upload Character</span></b><span class="note">Это «загрузить персонажа». Выбери файл <b>FBX</b>. Если у тебя OBJ, сложи OBJ и картинки-текстуры в один ZIP и загрузи ZIP. GLB сайт не берёт.</span></li>
+        <li><b>Поверни лицом к себе</b><span class="note">Если персонаж лежит или стоит боком — поверни стрелками внизу, чтобы он смотрел на тебя. Нажми <span class="btnname">Next</span>.</span></li>
+        <li><b>Расставь маркеры</b><span class="note">Перетащи кружочки на места, как на схеме ниже. Ставь точно в середину сустава. Цвета на сайте могут быть другими — смотри на подписи.</span></li>
+        <li><b>Выбери <span class="btnname">No Fingers</span></b><span class="note">В пункте Skeleton LOD. Пальцы у сгенерированных моделей обычно склеены, без пальцев движения будут чище. Нажми <span class="btnname">Next</span> и подожди минуту.</span></li>
+        <li><b>Проверь</b><span class="note">Персонаж зашевелится. Смотри: руки не проваливаются в тело? Колени гнутся там, где надо? Если нет — <span class="btnname">Back</span> и поправь маркеры. Если да — <span class="btnname">Next</span>.</span></li>
+      </ol>
+      <div class="box figure">
+        <svg width="230" height="270" viewBox="0 0 230 270" aria-label="Где ставить маркеры">
+          <g fill="none" stroke="#2a2420" stroke-width="3" stroke-linecap="round">
+            <circle cx="115" cy="40" r="22"/>
+            <path d="M115 62 V150 M115 80 L72 120 L42 168 M115 80 L158 120 L188 168 M115 150 L92 205 L84 255 M115 150 L138 205 L146 255"/>
+          </g>
+          <circle cx="115" cy="60" r="8" fill="#3b82c4"/>
+          <circle cx="72" cy="120" r="8" fill="#8a5cc2"/><circle cx="158" cy="120" r="8" fill="#8a5cc2"/>
+          <circle cx="42" cy="168" r="8" fill="#3f9a5a"/><circle cx="188" cy="168" r="8" fill="#3f9a5a"/>
+          <circle cx="115" cy="150" r="8" fill="#d4862c"/>
+          <circle cx="92" cy="205" r="8" fill="#d2b02a"/><circle cx="138" cy="205" r="8" fill="#d2b02a"/>
+        </svg>
+        <div class="legend">
+          <div><span class="dot" style="background:#3b82c4"></span><b>Подбородок</b> (Chin) — низ лица</div>
+          <div><span class="dot" style="background:#3f9a5a"></span><b>Запястья</b> (Wrists) — где кисть переходит в руку</div>
+          <div><span class="dot" style="background:#8a5cc2"></span><b>Локти</b> (Elbows)</div>
+          <div><span class="dot" style="background:#d4862c"></span><b>Пах</b> (Groin) — где ноги сходятся</div>
+          <div><span class="dot" style="background:#d2b02a"></span><b>Колени</b> (Knees)</div>
+          <p style="margin-top:10px;font-size:16px;color:var(--soft)">Включи галочку «Use Symmetry» — тогда маркеры справа повторят левые.</p>
+        </div>
+      </div>
+
+      <h3 style="margin-top:28px">Часть 2. Добавляем движения</h3>
+      <ol class="steps">
+        <li><b>Открой вкладку <span class="btnname">Animations</span></b><span class="note">Слева появится список движений.</span></li>
+        <li><b>Найди движение в поиске</b><span class="note">Пиши английское слово из списка ниже, например <code>Idle</code>. Выбирай то, что больше похоже на описание.</span></li>
+        <li><b>Поставь галочку <span class="btnname">In Place</span></b><span class="note">Если она есть. «На месте»: персонаж бежит, но не уезжает вперёд. Двигать его по карте будет игра.</span></li>
+        <li><b>Если руки задевают кафтан</b><span class="note">Сдвинь ползунок <span class="btnname">Character Arm-Space</span> немного вправо. Остальные ползунки не трогай.</span></li>
+        <li><b>Нажми <span class="btnname">Download</span> и выбери настройки</b><span class="note">Смотри таблицу ниже.</span></li>
+        <li><b>Переименуй файл</b><span class="note">Как написано в списке: <code>run.fbx</code>, <code>atk_kos.fbx</code>… Так я пойму, что это за движение.</span></li>
+      </ol>
+      <div class="box">
+        <b>Настройки скачивания</b>
+        <table>
+          <tr><th>Пункт</th><th>Что выбрать</th><th>Зачем</th></tr>
+          <tr><td>Format</td><td><b>FBX Binary (.fbx)</b></td><td>Этот файл я умею переводить в игру</td></tr>
+          <tr><td>Skin</td><td><b>With Skin</b> — только для первого движения. Для всех остальных <b>Without Skin</b></td><td>Модель нужна один раз, остальные файлы станут в 15 раз меньше</td></tr>
+          <tr><td>Frames per Second</td><td><b>30</b></td><td>Плавно и не тяжело</td></tr>
+          <tr><td>Keyframe Reduction</td><td><b>none</b></td><td>Не портить движение</td></tr>
+        </table>
+      </div>
+      <div class="why"><b>Хитрость.</b> Движения Тимера подходят ко всем его комплектам одежды и к людям-призракам (охотник, пастух, путник): у всех одинаковый скелет. Поэтому движения качаем <b>только для базового Тимера</b>, а для комплектов делаем только Часть 1 и качаем один файл With Skin.</div>
+
+      <h3 style="margin-top:28px">Какие движения нужны</h3>
+      <div id="list-anims"></div>
+    </section>
+
+    <!-- 10 -->
+    <section id="send">
+      <div class="kicker">Шаг 5</div>
+      <h2>Как назвать и прислать</h2>
+      <p>Имя файла — это подпись, по которой я узнаю вещь. Только маленькие английские буквы и подчёркивание.</p>
+      <table>
+        <tr><th>Что</th><th>Пример имени</th></tr>
+        <tr><td>Картинка спереди</td><td><code>ubyr_front.png</code></td></tr>
+        <tr><td>Ракурсы</td><td><code>ubyr_left.png</code>, <code>ubyr_back.png</code>, <code>ubyr_right.png</code></td></tr>
+        <tr><td>3D-модель</td><td><code>ubyr.glb</code> и <code>ubyr.fbx</code></td></tr>
+        <tr><td>Модель после Mixamo (With Skin)</td><td><code>ubyr_rig.fbx</code></td></tr>
+        <tr><td>Движение</td><td><code>ubyr_walk.fbx</code> (у Тимера просто <code>run.fbx</code>)</td></tr>
+      </table>
+      <div class="box"><b>Куда присылать:</b> прямо в этот чат с игрой. Можно по одной вещи, можно пачкой в ZIP-архиве. Картинки тоже присылай — по ним я проверю, всё ли совпало.</div>
+    </section>
+
+    <!-- 11 -->
+    <section id="oops">
+      <div class="kicker">Не беда</div>
+      <h2>Если что-то не так</h2>
+      <table>
+        <tr><th>Что случилось</th><th>Что сделать</th></tr>
+        <tr><td>В руке появился меч или фонарь</td><td>Напиши: «Убери всё из рук, руки пустые»</td></tr>
+        <tr><td>Руки прижаты к телу</td><td>«Руки дальше от тела, A-поза, между рукой и боком видно фон»</td></tr>
+        <tr><td>Фон с травой или туманом</td><td>«Фон пустой светло-серый, без земли и тумана»</td></tr>
+        <tr><td>Получился плоский рисунок, а не 3D</td><td>«Сделай как игровой 3D-рендер, объёмная модель, не рисунок»</td></tr>
+        <tr><td>Стиль не похож на Тимера</td><td>Приложи картинку Тимера и напиши: «Точно в том же стиле, что на картинке»</td></tr>
+        <tr><td>На ракурсе сбоку другой цвет одежды</td><td>«Цвета и узоры точно как на первой картинке»</td></tr>
+        <tr><td>В Hunyuan 3D руки слиплись с телом</td><td>Сделай картинку, где руки ещё дальше от тела, и сгенерируй снова</td></tr>
+        <tr><td>Mixamo пишет ошибку при загрузке</td><td>Проверь, что файл FBX или ZIP. Если не помогло — пришли модель мне</td></tr>
+        <tr><td>В Mixamo рука проваливается в кафтан</td><td>Ползунок Character Arm-Space вправо, или поправь маркер локтя</td></tr>
+      </table>
+      <div class="why"><b>Главное:</b> если совсем не получается, пришли что есть. Даже неидеальная модель поможет — дальше я доделаю.</div>
+    </section>
+
+    <!-- 12 -->
+    <section id="words">
+      <div class="kicker">Слова</div>
+      <h2>Словарик</h2>
+      <dl class="gloss">
+        <dt>Промпт</dt><dd>Задание для нейросети словами.</dd>
+        <dt>Референс, образец</dt><dd>Картинка, которую прикладываешь, чтобы нейросеть рисовала похоже.</dd>
+        <dt>A-поза</dt><dd>Стоит ровно, руки опущены и отведены от тела, как буква «А».</dd>
+        <dt>Ракурс</dt><dd>С какой стороны мы смотрим: спереди, сбоку, сзади.</dd>
+        <dt>Модель, 3D-модель</dt><dd>Объёмная фигура, которую можно крутить со всех сторон.</dd>
+        <dt>Текстура</dt><dd>Раскраска модели: цвет, узоры, мех.</dd>
+        <dt>Полигоны</dt><dd>Маленькие треугольники, из которых склеена модель.</dd>
+        <dt>Скелет, риг</dt><dd>Невидимые кости внутри модели. За них модель двигается.</dd>
+        <dt>Анимация</dt><dd>Движение: бег, удар, вздох.</dd>
+        <dt>In Place</dt><dd>Движение на месте, без ухода вперёд.</dd>
+        <dt>Кускар</dt><dd>Башкирский узор в виде бараньих рогов.</dd>
+        <dt>Беркутчи</dt><dd>Охотник, который охотится с беркутом (большим орлом).</dd>
+      </dl>
+    </section>
+  </main>
+</div>
+
+<script>
+// ------------------------------------------------------------------ the common parts of every prompt
+// A prompt = HEAD (what kind of picture) + the asset's own description + TAIL (how to show it, what to avoid).
+// Materials and ornaments live only in the descriptions: a shared "fur, metal, ornament" line dressed every character up.
+const HEAD = {
+  person: 'Игровой 3D-рендер для three.js: объёмная стилизованная 3D-модель персонажа для тёмной фэнтези-игры, как персонажи в Diablo IV.\nПерсонаж: ',
+  animal: 'Игровой 3D-рендер для three.js: объёмная стилизованная 3D-модель животного для тёмной фэнтези-игры, как звери в Diablo IV.\nЖивотное: ',
+  bird: 'Игровой 3D-рендер для three.js: объёмная стилизованная 3D-модель птицы для тёмной фэнтези-игры, как в Diablo IV.\nПтица: ',
+  item: 'Игровой 3D-рендер для three.js: объёмная стилизованная 3D-модель предмета для тёмной фэнтези-игры, как вещи в Diablo IV.\nПредмет: ',
+}
+const LOOK = 'Стиль: чёткие объёмные формы, крупные понятные детали, материалы выглядят настоящими. Цвета приглушённые, земляные. Рендер с мягким ровным студийным светом со всех сторон, без резких теней, бликов и размытия фона.'
+HEAD.outfit = 'Игровой 3D-рендер для three.js: объёмная 3D-модель персонажа для тёмной фэнтези-игры, как персонажи в Diablo IV.\nЭто тот же мужчина, что на приложенной картинке: то же лицо, та же борода и причёска, тот же рост и телосложение, та же A-поза, тот же вид строго спереди, тот же светло-серый фон и свет. Поменяй только одежду.\nНовая одежда: '
+const TAIL = {
+  outfit: 'Правила одежды: голова без шапки и шлема; одежда сидит по фигуре и не шире плеч больше чем на ладонь; всё не длиннее колена; рукава и полы не касаются боков, между рукой и телом виден фон; руки пустые, пальцы разведены.\n' + LOOK + '\nНе делай: 2D-рисунок, скетч, другое лицо, другую позу, другой рост, шапку, шлем, оружие и предметы в руках, плащ или подол до земли, развевающуюся ткань, дым, свечение, текст, второго персонажа, окружение',
+  person: LOOK + '\nКак показать: один персонаж в полный рост, вид строго спереди. A-поза: руки опущены и отведены от тела, между рукой и боком виден фон, пальцы разведены, ноги на ширине плеч, голова прямо. Пустой светло-серый фон. Персонаж целиком в кадре, сверху и снизу немного места.\nНе делай: 2D-рисунок, скетч, мазки кисти, контурные линии, оружие и предметы в руках, одежду до земли, развевающиеся плащи, дым, свечение, магию, текст, подписи, рамку, второго персонажа, землю и окружение',
+  animal: LOOK + '\nКак показать: одно животное целиком, вид строго сбоку, стоит ровно на четырёх лапах, голова прямо, пасть закрыта, хвост вытянут назад. Пустой светло-серый фон.\nНе делай: 2D-рисунок, скетч, мазки кисти, прыжок, бег, оскал, второе животное, траву, землю, туман, свечение, текст',
+  bird: LOOK + '\nКак показать: одна птица, вид строго спереди, крылья полностью раскрыты в стороны ровно горизонтально, хвост раскрыт веером, лапы поджаты. Пустой светло-серый фон.\nНе делай: 2D-рисунок, скетч, мазки кисти, полёт под углом, добычу, ветки, небо, текст',
+  item: LOOK + '\nКак показать: один предмет, вид строго спереди, целиком в кадре, пустой светло-серый фон. Без людей, без рук, без подставки.\nНе делай: 2D-рисунок, скетч, мазки кисти, окружение, дым, свечение, текст, подписи, второй предмет',
+}
+
+// ------------------------------------------------------------------ angles
+const ANGLES = [
+  ['Слева', 'Это тот же персонаж (или предмет), что на картинке выше. Нарисуй его точно таким же, но вид строго сбоку слева. Та же поза, тот же размер, те же цвета и узоры, тот же светло-серый фон и свет. Ничего не меняй и не добавляй.'],
+  ['Сзади', 'Это тот же персонаж (или предмет), что на картинке выше. Нарисуй его точно таким же, но вид строго сзади. Та же поза, тот же размер, те же цвета и узоры, тот же светло-серый фон и свет. Ничего не меняй и не добавляй.'],
+  ['Справа', 'Это тот же персонаж (или предмет), что на картинке выше. Нарисуй его точно таким же, но вид строго сбоку справа. Та же поза, тот же размер, те же цвета и узоры, тот же светло-серый фон и свет. Ничего не меняй и не добавляй.'],
+  ['Для зверей: спереди и сверху', 'Это то же животное, что на картинке выше. Нарисуй его точно таким же, вид строго спереди (потом отдельной картинкой — строго сверху). Та же поза, тот же размер, те же цвета, тот же фон и свет. Ничего не меняй.'],
+]
+
+// ------------------------------------------------------------------ assets
+// prio: first | later | maybe | done ; kind: person | animal | bird | item ; mixamo: yes | no | try
+const HEROES = [
+  { id: 'ubyr', name: 'Убыр', sub: 'Мертвец, которого не приняла земля', where: 'Ельник, Чёрная падь, Курган, Кочевье', prio: 'first', kind: 'person', mixamo: 'yes', file: 'ubyr',
+    desc: 'Убыр — иссохший мертвец-кочевник. Серо-бурая кожа обтягивает кости, впалые щёки, мутные белёсые глаза, рот приоткрыт, редкие длинные седые волосы. Руки чуть длиннее обычных, тёмные ногти. Старый рваный кафтан, обтрёпанный до колен, обрывок выцветшего кушака, на шее нитка старых монет и костяных оберегов. Рваные сапоги. В складках одежды земля и корешки. Стоит прямо.',
+    tips: ['Сутулость и хромоту добавит анимация — рисуем ровно.', 'Он выкапывается из земли, поэтому земля на одежде — хорошо.'] },
+  { id: 'wolf', name: 'Волк-тень', sub: 'Стая в Волчьем логе', where: 'Ручей, Волчий лог, Тропа оберегов', prio: 'first', kind: 'animal', mixamo: 'no', file: 'wolf',
+    desc: 'Волк-тень — крупный худой волк. Почти чёрная шерсть с сизым отливом, взъерошенная длинная холка, впалые бока, видны рёбра и лопатки. Длинные лапы, узкая вытянутая морда, бледные светло-серые глаза, уши чуть прижаты назад. Длинный тяжёлый хвост.',
+    tips: ['Главный вид — сбоку. Потом спереди и сверху.', 'Mixamo не нужен: волка двигаю я.'] },
+  { id: 'albasty', name: 'Албасты', sub: 'Злой дух, уводит матерей', where: 'Чужое кочевье', prio: 'first', kind: 'person', mixamo: 'yes', file: 'albasty',
+    desc: 'Албасты — высокая худая женская фигура, злой дух. Шея и руки чуть длиннее обычных, тонкие длинные пальцы с острыми ногтями. Бледная серо-голубая кожа. Очень длинные спутанные чёрные волосы закрывают лицо и спускаются до пояса. Старое белёсое платье-кульдэк до середины голени с рваным подолом. На груди потускневший нагрудник из монет и кораллов. Босые ноги.',
+    tips: ['Волосы до пояса, не ниже — иначе они «склеятся» с ногами.', 'Лица не видно — так и задумано.'] },
+  { id: 'shurale', name: 'Шурале', sub: 'Хозяин урмана, главный босс', where: 'Поляна Шурале', prio: 'first', kind: 'person', mixamo: 'try', file: 'shurale',
+    desc: 'Шурале — лесной дух, хозяин леса. Очень высокий, около трёх метров, худой и угловатый. Тело как переплетение корней и сухих веток, кожа как еловая кора, на плечах и руках мох и лишайник. На лбу один изогнутый рог. Вытянутое лицо, широкая хитрая улыбка до ушей, глубоко посаженные янтарные глаза, длинные острые уши. Руки свисают почти до колен, пальцы-сучья в два раза длиннее человеческих, по пять на руке, широко разведены. Тонкие ноги, ступни с длинными пальцами-корнями. На запястье выцветшая синяя лента.',
+    tips: ['Пальцы не должны касаться друг друга и тела.', 'Mixamo может не справиться с длинными руками. Попробуй — не выйдет, я сделаю движения сам.'] },
+  { id: 'eagle', name: 'Беркут Кара', sub: 'Друг Тимера, помогает в бою', where: 'Весь уровень (навык E)', prio: 'first', kind: 'bird', mixamo: 'no', file: 'eagle',
+    desc: 'Беркут Кара — крупный мощный беркут (золотой орёл). Тёмно-бурые перья, золотистые перья на затылке и шее, светлые пятна у основания хвоста, жёлтые лапы с чёрными когтями, тяжёлый изогнутый клюв, янтарный глаз. На лапах короткие кожаные ремешки с охряной ниткой.',
+    tips: ['Крылья раскрыты ровно в стороны — так их проще двигать.', 'Ракурсы: сверху и сбоку.'] },
+  { id: 'marten', name: 'Сусар, куница', sub: 'Спутница из капкана', where: 'Капкан и дальше всю дорогу', prio: 'first', kind: 'animal', mixamo: 'no', file: 'marten',
+    desc: 'Сусар — лесная куница. Гибкое длинное тело, короткие лапы, тёплый каштановый мех, светлая кремовая грудка, тёмные лапы и кончики ушей, круглые ушки, умная мордочка, блестящие тёмные глаза, пушистый длинный хвост.',
+    tips: ['Она маленькая, но рисуем крупно, на весь кадр.', 'Mixamo не нужен.'] },
+  { id: 'azamat', name: 'Азамат', sub: 'Сын Тимера, 11 лет', where: 'Дупло на Поляне Шурале (финал)', prio: 'later', kind: 'person', mixamo: 'yes', file: 'azamat',
+    desc: 'Азамат — башкирский мальчик 11 лет, худенький и смелый. Тёмные взъерошенные волосы, большие тёмные глаза, на щеке грязь. Короткий синий камзол поверх светлой рубахи, кожаный пояс, на поясе маленький курай-свистулька в чехле. Широкие штаны, мягкие сапожки. Лицо испуганное, но упрямое.',
+    tips: ['Курай висит на поясе, не в руке.', 'Пропорции ребёнка: голова чуть больше, ноги короче.'] },
+  { id: 'hunter', name: 'Охотник из волчьего рода', sub: 'Призрак-эхо на поляне охотника', where: 'Поляна охотника', prio: 'later', kind: 'person', mixamo: 'yes', file: 'hunter',
+    desc: 'Охотник из волчьего рода — башкир около 40 лет. Худой, седина в бороде, усталое лицо. Лёгкий кафтан из бурого войлока до колена, кожаный пояс, шерстяная шапка с отворотами, короткая кожаная накидка на плечах, мягкие сапоги-ичиги. На шее шнурок с волчьим клыком.',
+    tips: ['В игре он призрак, поэтому цвет не очень важен — важна форма.', 'Движения возьмём у Тимера.'] },
+  { id: 'herder', name: 'Пастух кочевья', sub: 'Призрак-эхо у павшего коня', where: 'Чужое кочевье', prio: 'maybe', kind: 'person', mixamo: 'yes', file: 'herder',
+    desc: 'Пастух — молодой башкир лет восемнадцати, худощавый. Простая рубаха, жилет-камзол из овчины мехом внутрь, войлочная шапка-калпак, широкие штаны, кожаные чувяки. На поясе пустой ремешок для кнута.',
+    tips: ['Движения возьмём у Тимера.'] },
+  { id: 'traveller', name: 'Путник с ребёнком (Арслан)', sub: 'Призрак-эхо у кургана, отец Тимера', where: 'Курган', prio: 'later', kind: 'person', mixamo: 'yes', file: 'arslan',
+    desc: 'Арслан — башкир около 45 лет, охотник с беркутом. Выше и шире Тимера, похож на него лицом. Седые виски, короткая борода, измученное решительное лицо. Старый тёмно-бордовый кафтан до колена с выцветшей вышивкой кускар, лисья шапка, короткая накидка из волчьей шкуры, кожаная перчатка охотника на левой руке.',
+    tips: ['Ребёнка на руках НЕ рисуем: свёрток сделаем отдельной вещью (смотри «Окружение и быт»).', 'Это секрет сюжета: в игре его имя не называют.'] },
+  { id: 'horse', name: 'Конь кочевья', sub: 'Павший конь (лежит у юрт)', where: 'Чужое кочевье', prio: 'maybe', kind: 'animal', mixamo: 'no', file: 'horse',
+    desc: 'Башкирская лошадь — невысокая, коренастая, густая грива, короткие крепкие ноги, гнедая масть. Войлочный чепрак с охряным узором кускар, простое седло с высокой лукой.',
+    tips: ['Можно сразу сделать вещь «конь лежит» — смотри «Окружение и быт».'] },
+]
+
+const TIMER = [
+  { group: 'База', note: 'Картинка уже готова (смотри выше). Дальше — ракурсы, 3D и Mixamo.' },
+  { id: 'timer_base', name: 'Тимер-база', sub: 'Лицо, руки и скелет для всех движений и всей одежды', where: 'Главный герой', prio: 'first', kind: 'person', mixamo: 'yes', file: 'timer_base',
+    desc: 'Тимер — мужчина-башкир 30 лет, охотник. Крепкий и жилистый, средний рост, не богатырь. Обветренное скуластое лицо, тёмные глаза, короткая тёмная борода, спокойный внимательный взгляд. Без шапки, короткие тёмные волосы. Одет очень просто: свободная рубаха из небелёного льна светло-бежевого цвета с длинными рукавами и коротким разрезом у ворота, без вышивки, заправлена в штаны. Широкие тёмно-коричневые шерстяные штаны, собранные у колена. Подпоясан плетёной верёвкой с двумя кисточками. Высокие мягкие кожаные сапоги до колена. На плечах и на спине ничего нет. Кисти рук голые.',
+    avoid: 'кафтан, халат, жилет, мех, накидку, шапку, доспех, перчатки, вышивку, украшения, сумки на поясе',
+    tips: ['Картинка уже есть — заново генерировать не нужно. Промпт оставлен на случай, если захочешь переделать.', 'Сделай ракурсы слева, сзади, справа — промпты в разделе «Другие ракурсы».', 'На эту модель в Mixamo качаем все движения из списка.'] },
+
+  { group: 'Одежда', note: 'От лёгкой к тяжёлой. Каждый комплект — та же база, только переодетая.' },
+  { id: 'outfit_kaftan', name: 'Кафтан беркутчи', sub: 'Лёгкий · глава 1 · в нём Тимер начинает игру', where: 'Урман, с самого начала', prio: 'first', kind: 'outfit', mixamo: 'yes', file: 'outfit_kaftan',
+    desc: 'стёганый тёмно-синий кафтан до колена с запахом и разрезами по бокам, рукава узкие; по вороту, краю и обшлагам охряная вышивка кускар (узор «бараньи рога»). Под кафтаном видна та же льняная рубаха. Широкий охряный кушак, завязанный узлом сбоку. На плечах короткая накидка из серой волчьей шкуры до середины спины, застёгнута кожаным ремешком на груди. На левой руке толстая кожаная перчатка охотника с беркутом, до локтя, с царапинами от когтей. На правом предплечье простой кожаный наруч. Те же тёмно-коричневые штаны и высокие кожаные сапоги до колена.',
+    tips: ['Это главный вид героя в первой главе — делай его первым из комплектов.', 'Перчатка на левой руке — часть кафтана: на неё садится беркут.'] },
+  { id: 'outfit_chekmen', name: 'Кожаный чекмень', sub: 'Лёгкий-средний · глава 1 · находка в пути', where: 'Урман, вторая одежда', prio: 'later', kind: 'outfit', mixamo: 'yes', file: 'outfit_chekmen',
+    desc: 'бурый кожаный чекмень (короткий кафтан) до середины бедра, застёгнут на костяные пуговицы-палочки, на груди рядами нашиты светлые костяные пластинки. Кожаные наплечники в два слоя. Кожаные наручи на шнуровке. Широкий кожаный пояс с латунной пряжкой. Под чекменем та же льняная рубаха, те же тёмно-коричневые штаны и высокие кожаные сапоги до колена.',
+    tips: ['Нужен, чтобы проверить переодевание уже в первой главе.'] },
+  { id: 'outfit_tegilyay', name: 'Стёганый тегиляй', sub: 'Средний · глава 2 · мягкая броня степняка', where: 'Степь курганов', prio: 'maybe', kind: 'outfit', mixamo: 'yes', file: 'outfit_tegilyay',
+    desc: 'толстый стёганый доспех-тегиляй из плотного войлока и холста, тёмно-красный, стёжка ромбами, швы охряные. Высокий стоячий воротник, короткие рукава до локтя, длина до колена с разрезами спереди и по бокам. Из-под рукавов видна льняная рубаха. Кожаные наручи. Широкий тёмный кушак. Те же штаны и высокие кожаные сапоги до колена.',
+    tips: ['Тегиляй толстый: проследи, чтобы он был не шире плеч больше чем на ладонь.'] },
+  { id: 'outfit_mail', name: 'Кольчуга под кафтаном', sub: 'Средний · глава 3', where: 'Шульган-Таш', prio: 'maybe', kind: 'outfit', mixamo: 'yes', file: 'outfit_mail',
+    desc: 'кольчужная рубаха из мелких железных колец до середины бедра, с короткими рукавами. Поверх неё распашной кафтан без рукавов из тёмно-синего сукна с охряной каймой, до колена, с разрезами по бокам. Кожаный пояс с железными бляхами. Кожаные наручи с железными полосами. Те же штаны. Высокие кожаные сапоги до колена с железными накладками на голенищах.' },
+  { id: 'outfit_kuyak', name: 'Пластинчатый куяк', sub: 'Тяжёлый · главы 4–5 · самая крепкая броня', where: 'Поздние главы', prio: 'later', kind: 'outfit', mixamo: 'yes', file: 'outfit_kuyak',
+    desc: 'тяжёлый кочевой доспех-куяк: тёмные железные пластины с бронзовыми заклёпками, нашитые рядами на кожаную основу поверх стёганки. Круглые железные наплечники. Юбка из пластин до колена, разрезанная на четыре полы: спереди, сзади и по бокам. На груди круглое бронзовое зерцало с узором кускар. Железные наручи. Широкий кожаный пояс с бронзовой пряжкой. Те же штаны. Высокие сапоги до колена с железными пластинами на голенищах.',
+    tips: ['Юбка из пластин обязательно с разрезами — иначе ноги не смогут шагать.', 'Наплечники не выше ушей и не шире ладони за плечом.'] },
+  { id: 'outfit_arslan', name: 'Кафтан Арслана', sub: 'Лёгкий · глава 4 · одежда отца, сюжетная', where: 'После встречи с тенью отца', prio: 'maybe', kind: 'outfit', mixamo: 'yes', file: 'outfit_arslan',
+    desc: 'старый тёмно-бордовый кафтан до колена, когда-то богатый: выцветшая вышивка кускар золотисто-охряной нитью, аккуратные заплаты на локтях. Кушак из полосатой ткани. На плечах короткая накидка из потёртой лисьей шкуры. На левой руке старая кожаная перчатка охотника с беркутом, до локтя. Те же штаны и высокие кожаные сапоги до колена.' },
+  { id: 'outfit_winter', name: 'Зимний тун', sub: 'Тёплый · глава 5 · для снегов Иремеля', where: 'Иремель', prio: 'maybe', kind: 'outfit', mixamo: 'yes', file: 'outfit_winter',
+    desc: 'тёплый тулуп-тун из овчины мехом внутрь: снаружи светлая выделанная кожа с вышитыми охряными ромбами, белый мех виден по краю воротника, рукавов и подола. Длина до колена, разрезы по бокам. Широкий шерстяной кушак. Высокие войлочные сапоги до колена с кожаными носами.',
+    tips: ['Мех только по краям — не делай тулуп пушистым целиком, он станет слишком толстым.'] },
+
+  { group: 'Шапки и шлемы', note: 'Отдельные вещи. Надеваются на голову базы в игре.' },
+  { id: 'hat_burek', name: 'Шапка бүрек', sub: 'К кафтану беркутчи', where: 'Голова', prio: 'first', kind: 'item', mixamo: 'no', file: 'hat_burek',
+    desc: 'Башкирская шапка-бүрек: низкая округлая шапка из тёмно-синего сукна с охряной вышивкой кускар на макушке, широкая опушка из рыжего лисьего меха. По размеру головы взрослого мужчины, внутри пусто.' },
+  { id: 'hat_kolpak', name: 'Войлочный колпак', sub: 'Простая шапка', where: 'Голова', prio: 'later', kind: 'item', mixamo: 'no', file: 'hat_kolpak',
+    desc: 'Высокий белый войлочный колпак с отворотом, по отвороту тёмная кайма с ромбами. По размеру головы взрослого мужчины, внутри пусто.' },
+  { id: 'hat_malakhai', name: 'Малахай', sub: 'Зимняя шапка к туну', where: 'Голова', prio: 'maybe', kind: 'item', mixamo: 'no', file: 'hat_malakhai',
+    desc: 'Зимняя меховая шапка-малахай: верх из тёмного сукна, широкие меховые лопасти закрывают уши и затылок, спереди отворот из лисьего меха. По размеру головы взрослого мужчины, внутри пусто.' },
+  { id: 'helm_shishak', name: 'Шлем-шишак', sub: 'К тяжёлой броне', where: 'Голова', prio: 'later', kind: 'item', mixamo: 'no', file: 'helm_shishak',
+    desc: 'Кочевой железный шлем: высокий конусный купол из склёпанных тёмных пластин с острым шпилем, бронзовый обод с узором кускар, короткий наносник. Сзади и по бокам кольчужная сетка-бармица до плеч. Лицо открыто. По размеру головы взрослого мужчины, внутри пусто.' },
+
+  { group: 'Оружие и вещи', note: 'Висят на поясе и спине или лежат в руке. Все без человека.' },
+  { id: 'kylys', name: 'Кылыс', sub: 'Короткая сабля — главное оружие', where: 'Правая рука', prio: 'first', kind: 'item', mixamo: 'no', file: 'weapon_kylys',
+    desc: 'Кылыс — короткая изогнутая сабля около 60 сантиметров. Простая железная гарда, рукоять обмотана тёмной кожей, навершие-шарик, клинок с тёмными пятнами старой стали. Лежит горизонтально, остриём вправо.',
+    tips: ['Попроси горизонтальный формат.'] },
+  { id: 'bow', name: 'Степной лук', sub: 'Стрельба на ПКМ', where: 'Левая рука', prio: 'first', kind: 'item', mixamo: 'no', file: 'weapon_bow',
+    desc: 'Короткий степной лук из рога, жил и бересты, концы загнуты вперёд, рукоять обмотана кожей, тетива натянута. Стоит вертикально.' },
+  { id: 'quiver', name: 'Колчан со стрелами', sub: 'На спине', where: 'Спина', prio: 'later', kind: 'item', mixamo: 'no', file: 'quiver',
+    desc: 'Кожаный колчан с берестяными вставками и охряным узором, внутри десяток стрел с серым оперением, сверху ремешок.' },
+  { id: 'lantern', name: 'Отцовский фонарь', sub: 'Свет в тёмном лесу', where: 'Пояс', prio: 'first', kind: 'item', mixamo: 'no', file: 'lantern',
+    desc: 'Старый кованый железный фонарь с пластинами из рога вместо стёкол, медная ручка-кольцо сверху, внутри огарок свечи, следы копоти. Фонарь не горит.',
+    tips: ['Свет добавит игра — рисуем фонарь потухшим.'] },
+  { id: 'flask', name: 'Бурдюк для воды', sub: 'Глотки живой воды', where: 'Пояс', prio: 'later', kind: 'item', mixamo: 'no', file: 'flask',
+    desc: 'Кожаный бурдюк для воды, затёртый, деревянная пробка, короткий ремень для пояса.' },
+  { id: 'lasso', name: 'Аркан', sub: 'Свёрнутая верёвка', where: 'Пояс', prio: 'maybe', kind: 'item', mixamo: 'no', file: 'lasso',
+    desc: 'Свёрнутый кольцами аркан из плетёного конского волоса, перевязан кожаным шнурком.' },
+]
+
+const WORLD = [
+  { group: 'Пепелище', note: 'Начало игры: сгоревшая юрта семьи.' },
+  { id: 'yurt_burned', name: 'Сгоревшая юрта', sub: 'Дом Тимера после пожара', where: 'Пепелище', prio: 'later', kind: 'item', file: 'prop_yurt_burned',
+    desc: 'Остов сгоревшей башкирской юрты: решётчатые деревянные стенки-кереге, с одной стороны сгоревшие до обугленных пеньков, с другой ещё стоят. Несколько жердей купола упали внутрь, круг-шанырак лежит в золе, дверная рама уцелела. Внутри серая зола и обгоревшие куски войлока с узором.',
+    tips: ['Большая вещь — попроси вид спереди, чуть сверху.'] },
+  { id: 'cradle', name: 'Колыбель-бишек', sub: 'Тимер вырезал её для будущего ребёнка', where: 'Пепелище, Кочевье', prio: 'first', kind: 'item', file: 'prop_cradle',
+    desc: 'Башкирская колыбель-бишек: деревянная люлька на изогнутых полозьях-качалках, над ней дуга, внутри одеяльце с вышитым охряным узором. Колыбель целая и чистая.' },
+  { id: 'catch', name: 'Улов на ивовом пруте', sub: 'Рыба, которую нёс Тимер', where: 'Пепелище', prio: 'maybe', kind: 'item', file: 'prop_catch',
+    desc: 'Три серебристые речные рыбы нанизаны на гибкий ивовый прут. Лежит горизонтально.' },
+  { id: 'balbal', name: 'Балбал — каменный идол', sub: 'На нём тамга, её можно прочитать', where: 'Пепелище, Кочевье, Тропа оберегов', prio: 'first', kind: 'item', file: 'prop_balbal',
+    desc: 'Древний каменный идол-балбал: высокий серый камень в рост человека, грубо вырезанное простое лицо, руки сложены на животе. Камень старый, с мхом и трещинами. На груди вырезан родовой знак-тамга.' },
+
+  { group: 'Поляна охотника', note: 'Здесь погиб охотник волчьего рода.' },
+  { id: 'hunter_remains', name: 'Останки охотника', sub: 'Он шёл по тем же следам', where: 'Поляна охотника', prio: 'maybe', kind: 'item', file: 'prop_hunter_remains',
+    desc: 'Лежащий на земле старый кожаный плащ охотника, рядом сломанный лук, рассыпанные стрелы и потухший фонарь. Из-под плаща видна рука в кожаной перчатке.',
+    tips: ['Без страшных подробностей: важно, что он упал и не встал.'] },
+
+  { group: 'Ручей и Борть', note: 'Секрет вверх по ручью.' },
+  { id: 'bort', name: 'Борть на сосне', sub: 'Улей бортника в стволе', where: 'Борть', prio: 'later', kind: 'item', file: 'prop_bort',
+    desc: 'Часть толстого соснового ствола с выдолбленным дуплом-бортью, дупло закрыто деревянной дощечкой, вокруг ствола обмотана верёвка-лазейка бортника, рядом висит маленький берестяной туесок для мёда.' },
+
+  { group: 'Капкан и Родник', note: 'Куница Сусар и место отдыха.' },
+  { id: 'trap', name: 'Охотничий капкан', sub: 'В нём сидит Сусар', where: 'Капкан', prio: 'later', kind: 'item', file: 'prop_trap',
+    desc: 'Старый железный капкан с двумя полукруглыми челюстями, на короткой цепи с деревянным колышком. Капкан раскрыт. Вид сверху и чуть спереди.' },
+  { id: 'spring_stone', name: 'Камень родника', sub: 'Священный камень с бирюзовой тамгой', where: 'Родник', prio: 'later', kind: 'item', file: 'prop_spring_stone',
+    desc: 'Плоский вертикальный камень в половину роста человека, гладкий от времени, на нём вырезан простой знак-тамга. Внизу у камня мох и мелкие камешки.' },
+  { id: 'offering', name: 'Камень подношений', sub: 'Под шаманской берёзой', where: 'Родник', prio: 'maybe', kind: 'item', file: 'prop_offering',
+    desc: 'Низкий плоский камень, на нём старый конский череп, вокруг цветные ленточки, бусины и монеты, оставленные духам.' },
+  { id: 'drop_altar', name: 'Камень капли', sub: 'Здесь светится капля живой воды', where: 'Мёртвая роща', prio: 'maybe', kind: 'item', file: 'prop_drop_altar',
+    desc: 'Округлый тёмный валун с ровной вогнутой верхушкой, как чаша, по краю вырезаны волнистые линии воды.' },
+
+  { group: 'Курган', note: 'История отца Тимера.' },
+  { id: 'barrow_stele', name: 'Камень кургана', sub: 'Четвёртая тамга — про Урала', where: 'Курган', prio: 'later', kind: 'item', file: 'prop_barrow_stele',
+    desc: 'Высокая древняя каменная стела выше человека, грубо отёсанная, со следами лишайника. Посередине вырезан знак: круг, а под ним три капли.' },
+  { id: 'fire_steel', name: 'Огниво Арслана', sub: 'Вещь отца, которую находит Тимер', where: 'Курган', prio: 'first', kind: 'item', file: 'prop_fire_steel',
+    desc: 'Старинное башкирское огниво: изогнутая стальная пластина-кресало с кожаным чехольчиком, на коже выдавлен родовой знак-тамга, рядом кусочек кремня. Лежит горизонтально.' },
+  { id: 'bundle', name: 'Свёрток с ребёнком', sub: 'Его нёс путник-призрак', where: 'Курган', prio: 'maybe', kind: 'item', file: 'prop_bundle',
+    desc: 'Детский свёрток: малыш спит, завёрнутый в тёплое войлочное одеяльце с охряным узором, видно только маленькое лицо. Свёрток лежит горизонтально.' },
+
+  { group: 'Чужое кочевье', note: 'С этими людьми случилось то же, что с семьёй Тимера.' },
+  { id: 'yurt_ruined', name: 'Разорённая юрта', sub: 'Чужая, брошенная', where: 'Кочевье', prio: 'later', kind: 'item', file: 'prop_yurt_ruined',
+    desc: 'Брошенная башкирская юрта: деревянная решётка-кереге частично повалена, войлок порван и свисает клочьями, круг-шанырак сверху перекошен. Не горела, просто разорена.' },
+  { id: 'kazan', name: 'Казан на треноге', sub: 'Холодный очаг', where: 'Кочевье', prio: 'later', kind: 'item', file: 'prop_kazan',
+    desc: 'Чёрный чугунный котёл-казан висит на железной треноге над остывшими углями, обложенными камнями.' },
+  { id: 'sandyk', name: 'Сундук-сандык', sub: 'Приданое хозяйки', where: 'Кочевье', prio: 'maybe', kind: 'item', file: 'prop_sandyk',
+    desc: 'Деревянный сундук, окованный полосками жести с узором кускар, крышка приоткрыта, на углах металлические уголки.' },
+  { id: 'saba', name: 'Саба для кумыса', sub: 'Кожаный мешок', where: 'Кочевье', prio: 'maybe', kind: 'item', file: 'prop_saba',
+    desc: 'Саба — большой кожаный мешок для кумыса, тёмный, с деревянной мутовкой, торчащей из горлышка, стоит на деревянной подставке.' },
+  { id: 'saddle', name: 'Седло', sub: 'Седло с высокой лукой', where: 'Кочевье', prio: 'maybe', kind: 'item', file: 'prop_saddle',
+    desc: 'Башкирское деревянное седло с высокой передней лукой, обтянуто кожей, под ним войлочный чепрак с охряным узором, стремена висят.' },
+  { id: 'horse_down', name: 'Павший конь', sub: 'Конь не бросил хозяина', where: 'Кочевье', prio: 'maybe', kind: 'item', file: 'prop_horse_down',
+    desc: 'Гнедая башкирская лошадь лежит на боку, будто уснула, ноги вытянуты, грива рассыпана. На ней войлочный чепрак с охряным узором. Вид сбоку.' },
+
+  { group: 'Тропа оберегов и Поляна Шурале', note: 'Люди боятся этого места.' },
+  { id: 'pole', name: 'Шест-оберег', sub: 'С бараньим черепом и лентами', where: 'Тропа оберегов', prio: 'later', kind: 'item', file: 'prop_pole',
+    desc: 'Высокий деревянный шест, наверху бараний череп с закрученными рогами, ниже резная шапочка с узором и пучок цветных ленточек: красная, белая, синяя, охряная.' },
+  { id: 'arch', name: 'Арка оберегов', sub: 'Над тропой к поляне', where: 'Тропа оберегов', prio: 'later', kind: 'item', file: 'prop_arch',
+    desc: 'Арка из двух кривых жердей, связанных наверху, на ней висят берестяные обереги, связки костей, пучки трав и выцветшие ленточки.' },
+  { id: 'brazier', name: 'Кованая жаровня', sub: 'Её можно зажечь', where: 'Тропа, Кочевье, Поляна', prio: 'later', kind: 'item', file: 'prop_brazier',
+    desc: 'Кованая железная жаровня-чаша на трёх тонких ножках, высотой по пояс человеку, внутри угли, по краю чаши простой узор. Не горит.' },
+  { id: 'stakes', name: 'Колья с черепами', sub: 'Граница поляны Шурале', where: 'Поляна Шурале', prio: 'maybe', kind: 'item', file: 'prop_stakes',
+    desc: 'Три острых деревянных кола разной высоты, связанные вместе, на них насажены старые черепа зверей (лось, кабан), рога и висят сухие ветки.' },
+  { id: 'hollow_tree', name: 'Старое дерево с дуплом', sub: 'Там прячут Азамата', where: 'Поляна Шурале', prio: 'later', kind: 'item', file: 'prop_hollow_tree',
+    desc: 'Огромное древнее сухое дерево, толстый узловатый ствол, мощные корни, на высоте человека тёмное большое дупло, ветки голые и корявые. Без листьев.' },
+  { id: 'kurai', name: 'Курай Азамата', sub: 'Детская свистулька', where: 'Ельник (знак-находка)', prio: 'maybe', kind: 'item', file: 'prop_kurai',
+    desc: 'Короткий тростниковый курай-свистулька, светло-соломенный, с несколькими дырочками, обмотан цветной ниткой. Лежит горизонтально.' },
+]
+
+// Mixamo animation lists
+const ANIMS = [
+  { who: 'Тимер-база', note: 'Самый важный список. Уже есть: idle, run, roll — их качать не нужно.', must: [
+    ['idle', 'Idle', 'Спокойно стоит, дышит', true], ['run', 'Running', 'Бег', true], ['roll', 'Stand To Roll', 'Кувырок', true],
+    ['idle_combat', 'Sword And Shield Idle', 'Боевая стойка'], ['walk', 'Walking', 'Шаг'],
+    ['stance_fwd', 'Sword And Shield Walk', 'Стойка: шаг вперёд'], ['stance_back', 'Walking Backward', 'Стойка: шаг назад'],
+    ['stance_left', 'Strafe Left', 'Стойка: шаг влево'], ['stance_right', 'Strafe Right', 'Стойка: шаг вправо'],
+    ['atk_kos', 'Sword Slash', 'Удар справа налево'], ['atk_obr', 'Outward Slash', 'Удар наотмашь слева направо'],
+    ['atk_ukol', 'Stab', 'Укол вперёд'], ['atk_polu', 'Melee Attack 360', 'Удар с разворотом'],
+    ['atk_heavy', 'Melee Attack Downward', 'Тяжёлый удар сверху'], ['finisher', 'Stabbing', 'Добивание'],
+    ['block', 'Sword And Shield Block', 'Блок'], ['hit', 'Hit Reaction', 'Вздрогнул от удара'], ['death', 'Dying', 'Упал'],
+    ['bow_draw', 'Standing Draw Arrow', 'Натянуть лук'], ['bow_aim', 'Standing Aim Idle', 'Целится'], ['bow_shot', 'Standing Aim Recoil', 'Выстрел'],
+    ['throw', 'Throw', 'Бросок аркана'], ['drink', 'Drinking', 'Глоток из бурдюка'], ['pickup', 'Picking Up', 'Поднять, осмотреть'],
+  ], extra: [
+    ['charge', 'Power Up', 'Замах перед тяжёлым ударом'], ['atk_dash', 'Running Attack', 'Удар с разбега'],
+    ['parry', 'Parry', 'Отбить удар'], ['hit_heavy', 'Falling Back', 'Сбит с ног'], ['get_up', 'Getting Up', 'Встаёт с земли'],
+    ['struggle', 'Struggling', 'Вырывается из лап Шурале'], ['pull', 'Pulling', 'Тянет верёвку'], ['release', 'Pointing', 'Выпускает беркута'],
+    ['sit_down', 'Stand To Sit', 'Садится к огню'], ['sit_idle', 'Sitting Idle', 'Сидит у огня'], ['sit_up', 'Sit To Stand', 'Встаёт'],
+    ['turn_left', 'Left Turn', 'Поворот налево'], ['turn_right', 'Right Turn', 'Поворот направо'],
+  ] },
+  { who: 'Убыр', note: 'Файлы называй с ubyr_ в начале: ubyr_walk.fbx.', must: [
+    ['ubyr_idle', 'Zombie Idle', 'Стоит и качается'], ['ubyr_walk', 'Zombie Walk', 'Шаркающий шаг'], ['ubyr_attack', 'Zombie Attack', 'Удар руками'],
+    ['ubyr_hit', 'Zombie Reaction Hit', 'Вздрогнул'], ['ubyr_death', 'Zombie Dying', 'Упал'], ['ubyr_rise', 'Zombie Stand Up', 'Встаёт из земли'],
+  ], extra: [['ubyr_scream', 'Zombie Scream', 'Кричит, заметив Тимера']] },
+  { who: 'Албасты', note: 'Файлы называй с albasty_ в начале. Исчезновение я сделаю эффектом.', must: [
+    ['albasty_idle', 'Mutant Idle', 'Стоит, голова набок'], ['albasty_walk', 'Mutant Walking', 'Крадётся'], ['albasty_cast', 'Spell Casting', 'Колдует руками'],
+    ['albasty_attack', 'Mutant Swiping', 'Удар когтями'], ['albasty_death', 'Mutant Dying', 'Падает'],
+  ], extra: [['albasty_hit', 'Mutant Hit Reaction', 'Вздрогнула']] },
+  { who: 'Шурале (попробовать)', note: 'Если Mixamo не справится с длинными руками — ничего страшного, пропусти.', must: [
+    ['shurale_idle', 'Mutant Idle', 'Стоит, раскачивается'], ['shurale_walk', 'Mutant Walking', 'Шагает'], ['shurale_attack', 'Mutant Punch', 'Удар'],
+    ['shurale_grab', 'Grab', 'Хватает'], ['shurale_laugh', 'Laughing', 'Хохочет'], ['shurale_death', 'Dying', 'Падает'],
+  ], extra: [['shurale_jump', 'Jump', 'Прыгает']] },
+  { who: 'Азамат', note: 'Файлы называй с azamat_ в начале.', must: [
+    ['azamat_sit', 'Sitting Idle', 'Сидит в дупле'], ['azamat_idle', 'Sad Idle', 'Стоит, грустит'], ['azamat_hug', 'Hug', 'Обнимает отца'],
+  ], extra: [['azamat_walk', 'Walking', 'Идёт рядом']] },
+]
+
+// ------------------------------------------------------------------ render
+const PRIO = { first: ['Сначала', 't-first'], later: ['Потом', 't-later'], maybe: ['Если будет время', 't-maybe'], done: ['Уже есть', 't-done'] }
+const MIX = { yes: 'нужен', no: 'не нужен', try: 'попробовать' }
+const VIEWS = { outfit: ['спереди', 'слева', 'сзади', 'справа'], person: ['спереди', 'слева', 'сзади', 'справа'], animal: ['сбоку', 'спереди', 'сверху', 'сзади'], bird: ['спереди', 'сверху', 'сбоку'], item: ['спереди', 'сбоку', 'сзади'] }
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+
+function promptBlock(a) {
+  const head = HEAD[a.kind]
+  const tail = TAIL[a.kind] + (a.avoid ? ', ' + a.avoid : '') + '.'
+  const full = head + a.desc + '\n' + tail
+  return `<div class="prompt"><span class="lbl">Промпт</span><button class="copy" data-copy="${encodeURIComponent(full)}">Скопировать</button><span class="common">${esc(head)}</span><span class="what">${esc(a.desc)}</span>\n<span class="common">${esc(tail)}</span></div>`
+}
+
+function card(a) {
+  const [pl, pc] = PRIO[a.prio]
+  const files = (a.kind === 'person' || a.kind === 'outfit') && a.mixamo !== 'no'
+    ? `<code>${a.file}_front.png</code> → <code>${a.file}.glb</code> + <code>${a.file}.fbx</code> → <code>${a.file}_rig.fbx</code>`
+    : `<code>${a.file}_front.png</code> → <code>${a.file}.glb</code>`
+  const mix = a.mixamo ? `<span>Mixamo: <b>${MIX[a.mixamo]}</b></span>` : ''
+  return `<details class="asset" data-id="${a.id}">
+    <summary><input type="checkbox" class="done-box" title="Готово" /><div><div class="title">${a.name}</div><div class="sub">${a.sub}</div></div><span class="tag ${pc}">${pl}</span><span class="chev">›</span></summary>
+    <div class="body">
+      <div class="facts"><span>Где в игре: <b>${a.where}</b></span>${mix}</div>
+      ${promptBlock(a)}
+      <div><b>Ракурсы:</b> <span class="views">${VIEWS[a.kind].map((v) => `<span>${v}</span>`).join('')}</span></div>
+      <div style="margin-top:8px"><b>Файлы:</b> ${files}</div>
+      ${a.tips ? `<ul class="tips">${a.tips.map((t) => `<li>${t}</li>`).join('')}</ul>` : ''}
+    </div>
+  </details>`
+}
+
+function list(arr) {
+  return arr.map((a) => (a.group ? `<div class="grouphead"><h3>${a.group}</h3><p>${a.note}</p></div>` : card(a))).join('')
+}
+
+document.getElementById('list-heroes').innerHTML = list(HEROES)
+document.getElementById('list-timer').innerHTML = list(TIMER)
+document.getElementById('list-world').innerHTML = list(WORLD)
+document.getElementById('angle-prompts').innerHTML = ANGLES.map(([n, t]) => {
+  return `<div class="prompt"><span class="lbl">Ракурс: ${n}</span><button class="copy" data-copy="${encodeURIComponent(t)}">Скопировать</button><span class="what">${esc(t)}</span></div>`
+}).join('')
+
+document.getElementById('list-anims').innerHTML = ANIMS.map((g, gi) => {
+  const item = ([file, search, what, have], i, kind) => {
+    const id = `anim-${file}`
+    return `<li><label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer"><input type="checkbox" class="done-box anim-box" data-id="${id}" ${have ? 'data-have="1"' : ''} style="width:20px;height:20px;margin-top:3px" /><span><code>${file}.fbx</code> — ${what}<small>Искать: ${search}${have ? ' · уже есть' : ''}</small></span></label></li>`
+  }
+  return `<details class="asset" ${gi === 0 ? 'open' : ''}><summary><div><div class="title">${g.who}</div><div class="sub">${g.note}</div></div><span class="chev">›</span></summary>
+    <div class="body"><p style="margin-top:14px"><b>Обязательно</b></p><ul class="anim">${g.must.map((x, i) => item(x, i)).join('')}</ul>
+    <p style="margin-top:14px"><b>Желательно</b></p><ul class="anim">${g.extra.map((x, i) => item(x, i)).join('')}</ul></div></details>`
+}).join('') + '<div class="why"><b>Охотник, пастух, путник</b> — движения не качай: они берут движения Тимера. <b>Волк, куница, беркут, конь</b> — Mixamo не нужен.</div>'
+
+// ------------------------------------------------------------------ copy + progress (saved in the browser)
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.copy')
+  if (!b) return
+  const text = decodeURIComponent(b.dataset.copy)
+  const done = () => { b.textContent = 'Скопировано'; b.classList.add('ok'); setTimeout(() => { b.textContent = 'Скопировать'; b.classList.remove('ok') }, 1600) }
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, () => fallback(text, done))
+  else fallback(text, done)
+})
+function fallback(text, done) {
+  const t = document.createElement('textarea')
+  t.value = text
+  document.body.appendChild(t)
+  t.select()
+  document.execCommand('copy')
+  t.remove()
+  done()
+}
+
+const KEY = 'amanat.assets.done'
+const saved = new Set(JSON.parse(localStorage.getItem(KEY) || '[]'))
+function sync() {
+  const boxes = [...document.querySelectorAll('details.asset[data-id] > summary .done-box')]
+  let n = 0
+  for (const box of boxes) {
+    const d = box.closest('details')
+    d.classList.toggle('is-done', box.checked)
+    if (box.checked) n++
+  }
+  document.getElementById('pcount').textContent = n
+  document.getElementById('ptotal').textContent = boxes.length
+  document.getElementById('pbar').style.width = (boxes.length ? (n / boxes.length) * 100 : 0) + '%'
+}
+for (const box of document.querySelectorAll('.done-box')) {
+  const d = box.closest('details[data-id]')
+  const id = box.dataset.id || d?.dataset.id
+  box.checked = saved.has(id) || (!saved.has('!' + id) && (box.dataset.have === '1' || d?.querySelector('.t-done')))
+  box.addEventListener('click', (e) => e.stopPropagation())
+  box.addEventListener('change', () => {
+    saved.delete(id)
+    saved.delete('!' + id)
+    saved.add(box.checked ? id : '!' + id)
+    localStorage.setItem(KEY, JSON.stringify([...saved]))
+    sync()
+  })
+}
+sync()
+</script>
+</body>
+</html>

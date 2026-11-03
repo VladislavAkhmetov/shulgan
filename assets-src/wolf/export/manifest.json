@@ -1,0 +1,114 @@
+{
+  "bones": 48,
+  "deformingBones": 46,
+  "animations": [
+    {
+      "name": "idle",
+      "channels": 144,
+      "duration": 3.3333332538604736
+    },
+    {
+      "name": "idle_look",
+      "channels": 144,
+      "duration": 3.3333332538604736
+    },
+    {
+      "name": "idle_low",
+      "channels": 144,
+      "duration": 4
+    },
+    {
+      "name": "walk",
+      "channels": 144,
+      "duration": 1.0416666269302368
+    },
+    {
+      "name": "run",
+      "channels": 144,
+      "duration": 0.5416666865348816
+    },
+    {
+      "name": "run_jump",
+      "channels": 144,
+      "duration": 0.9166666865348816
+    },
+    {
+      "name": "jump",
+      "channels": 144,
+      "duration": 1.3333333730697632
+    },
+    {
+      "name": "attack",
+      "channels": 144,
+      "duration": 1.3333333730697632
+    },
+    {
+      "name": "hit_left",
+      "channels": 144,
+      "duration": 0.6666666865348816
+    },
+    {
+      "name": "hit_right",
+      "channels": 144,
+      "duration": 0.6666666865348816
+    },
+    {
+      "name": "death",
+      "channels": 144,
+      "duration": 1.0416666269302368
+    },
+    {
+      "name": "eat",
+      "channels": 144,
+      "duration": 2.5
+    }
+  ],
+  "gameTriangles": 13270,
+  "gameBytes": 2028396,
+  "originalSourceSHA256": "d3e97fde6b4248de4db47f0025accb99049c525ab23636eb44346410033f7e4b",
+  "originalPreserved": true,
+  "validation": {
+    "fbxRoundTripClips": 12,
+    "unweightedVertices": 0,
+    "nonfiniteValues": 0,
+    "maxWeightError": 1.3888347893953323e-07
+  },
+  "files": {
+    "volk_rigged.blend": {
+      "bytes": 45684170,
+      "sha256": "40f61d168b1146b9a962d8e764441041eebc6dc24b38350b59e1ac36f8df9e30"
+    },
+    "volk_rigged.fbx": {
+      "bytes": 47190620,
+      "sha256": "0fafbc48d2a94c4db5d6a6450600032b2537604436a6b4797a4cbe1a5a5e6c28"
+    },
+    "volk_rigged.glb": {
+      "bytes": 46680112,
+      "sha256": "f153a9052e20b18756a1c378d0cf84d88c3016bc05645fde784f88b534a81fd3"
+    },
+    "volk_game.glb": {
+      "bytes": 2028396,
+      "sha256": "56e061fd0ad2ef7f0303f0ee0ec825ecc7ce65bf910e96ee5b1d71e01feb60d4"
+    },
+    "volk_motion.gif": {
+      "bytes": 16270978,
+      "sha256": "484e23ece1897ba8bf60476d9e36998297d6e2bad6576841894efc72834a5612"
+    },
+    "volk_motion.webp": {
+      "bytes": 923438,
+      "sha256": "d05e0dde284f6af0de481fa5110012ec089f6f965863eb7cf52347f0c31c7682"
+    },
+    "volk_preview.png": {
+      "bytes": 825714,
+      "sha256": "f8211e47981ee9297187a386f2680f5b7bf8d61ea8e8e4704e3928dd89f18bd0"
+    },
+    "README.md": {
+      "bytes": 3987,
+      "sha256": "b6f6b2a55208598bd4672fa87441bafca6412a1cbd9db8d349667655bfc8a263"
+    },
+    "LICENSE-ANIMATIONS.txt": {
+      "bytes": 661,
+      "sha256": "165862d7e4f747f0380ec50a72bb6d926a44245dd611f490a3df00b9e61d15ea"
+    }
+  }
+}

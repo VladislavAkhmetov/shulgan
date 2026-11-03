@@ -1,0 +1,218 @@
+@import url('https://fonts.googleapis.com/css2?family=Forum&family=Alegreya:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Alegreya+Sans:wght@400;500;700;800&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Forum', 'Times New Roman', serif;
+  --font-tale: 'Alegreya', Georgia, serif;
+  --font-ui: 'Alegreya Sans', system-ui, sans-serif;
+  --color-ink: #070a12;
+  --color-night: #0e1424;
+  --color-bone: #d9d2c3;
+  --color-ochre: #a4452c;
+  --color-amber: #e89b3c;
+  --color-jade: #5fe0c8;
+  --color-ember: #c4552a;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    background: #020306;
+    overflow: hidden;
+  }
+  body {
+    font-family: var(--font-ui);
+    color: var(--color-bone);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+/* the title of a new place: rises out of blur, holds, dissolves */
+@keyframes zone-card {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(6px);
+  }
+  14% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  78% {
+    opacity: 1;
+    filter: none;
+  }
+  100% {
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.anim-fade-up {
+  animation: fade-up 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.anim-fade-in {
+  animation: fade-in 1.2s ease both;
+}
+.anim-breathe {
+  animation: breathe 2.6s ease-in-out infinite;
+}
+.text-glow {
+  text-shadow:
+    0 0 18px rgba(0, 0, 0, 0.9),
+    0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+/* ---- prologue: cave paintings ---- */
+.glyph-stroke {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: glyph-draw 2.6s cubic-bezier(0.45, 0.05, 0.3, 1) forwards;
+}
+.glyph-fill {
+  opacity: 0;
+  animation: glyph-pigment 2.2s ease forwards;
+}
+@keyframes glyph-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes glyph-pigment {
+  0% {
+    opacity: 0;
+    filter: blur(3px);
+  }
+  100% {
+    opacity: 0.88;
+    filter: none;
+  }
+}
+@keyframes word-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+.torch {
+  animation: torch 3.1s infinite;
+}
+@keyframes torch {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  17% {
+    opacity: 0.7;
+  }
+  31% {
+    opacity: 0.95;
+    transform: scale(1.03);
+  }
+  48% {
+    opacity: 0.75;
+  }
+  62% {
+    opacity: 1;
+    transform: scale(0.99);
+  }
+  80% {
+    opacity: 0.8;
+  }
+}
+
+/* ---- game UI ---- */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-menu {
+  animation: menu-in 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.anim-pane {
+  animation: pane-in 0.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.anim-quick {
+  animation: fade-in 0.2s ease both;
+}
+/* soot veil from the left edge: menus sit on it, the scene stays visible on the right */
+.veil-left {
+  background: linear-gradient(90deg, rgba(4, 5, 8, 0.95) 0%, rgba(4, 5, 8, 0.88) 46%, rgba(4, 5, 8, 0.45) 62%, rgba(4, 5, 8, 0) 76%);
+}
+.veil-strong {
+  background: linear-gradient(90deg, rgba(4, 5, 8, 0.96) 0%, rgba(4, 5, 8, 0.9) 45%, rgba(4, 5, 8, 0.8) 100%);
+}
+.veil-full {
+  background: radial-gradient(ellipse at 60% 50%, rgba(4, 5, 8, 0.55), rgba(4, 5, 8, 0.94) 75%);
+}
+/* felt: faint fibres over the dark */
+.felt::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  mix-blend-mode: screen;
+}
+.text-shade {
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 14px rgba(0, 0, 0, 0.8);
+}

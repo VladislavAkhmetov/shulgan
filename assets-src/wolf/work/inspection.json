@@ -1,0 +1,128 @@
+{
+  "blender": "5.2.3 LTS",
+  "objects": [
+    {
+      "name": "node_0",
+      "type": "MESH",
+      "location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation": [
+        1.570796251296997,
+        -0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "dimensions": [
+        1.1842340230941772,
+        0.499550998210907,
+        0.20202600955963135
+      ],
+      "parent": null,
+      "vertices": 24831,
+      "triangles": 49922,
+      "bounds": [
+        [
+          -0.591044008731842,
+          0.5931900143623352
+        ],
+        [
+          -0.10184700042009354,
+          0.10017900168895721
+        ],
+        [
+          5.015174497913222e-09,
+          0.499550998210907
+        ]
+      ],
+      "uv_layers": [
+        "UVMap"
+      ],
+      "vertex_groups": 0,
+      "materials": [
+        "Material"
+      ],
+      "modifiers": []
+    }
+  ],
+  "actions": [],
+  "images": [
+    {
+      "name": "texture_pbr_20250901.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true,
+      "path": "C:\\devlad\\shulgan\\assets-src\\wolf\\source\\output.fbm\\texture_pbr_20250901.png"
+    },
+    {
+      "name": "texture_pbr_20250901_metallic.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true,
+      "path": "C:\\devlad\\shulgan\\assets-src\\wolf\\source\\output.fbm\\texture_pbr_20250901_metallic.png"
+    },
+    {
+      "name": "texture_pbr_20250901_normal.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true,
+      "path": "C:\\devlad\\shulgan\\assets-src\\wolf\\source\\output.fbm\\texture_pbr_20250901_normal.png"
+    },
+    {
+      "name": "texture_pbr_20250901_roughness.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true,
+      "path": "C:\\devlad\\shulgan\\assets-src\\wolf\\source\\output.fbm\\texture_pbr_20250901_roughness.png"
+    }
+  ],
+  "materials": [
+    {
+      "name": "Material",
+      "nodes": [
+        [
+          "BSDF_PRINCIPLED",
+          "Principled BSDF"
+        ],
+        [
+          "OUTPUT_MATERIAL",
+          "Material Output"
+        ],
+        [
+          "NORMAL_MAP",
+          "Normal Map"
+        ],
+        [
+          "TEX_IMAGE",
+          "Image Texture"
+        ],
+        [
+          "TEX_IMAGE",
+          "Image Texture.001"
+        ],
+        [
+          "TEX_IMAGE",
+          "Image Texture.002"
+        ],
+        [
+          "TEX_IMAGE",
+          "Image Texture.003"
+        ]
+      ]
+    }
+  ]
+}

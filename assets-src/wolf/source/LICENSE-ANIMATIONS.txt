@@ -1,0 +1,11 @@
+Animation source: Quaternius, Ultimate Animated Animal Pack (July 2021).
+Author page: https://quaternius.com/packs/ultimateanimatedanimals.html
+Author's Wolf listing: https://poly.pizza/m/P1gU3Qkr9r
+Downloaded GLB: https://static.poly.pizza/f1d12388-e39b-4157-b32a-646a1d089fc4.glb
+
+The source model and animations are published by Quaternius under CC0 1.0
+(Public Domain Dedication): https://creativecommons.org/publicdomain/zero/1.0/
+The twelve animation clips were retargeted to the user-provided wolf.
+
+This notice covers the downloaded animation source. Rights in the user-supplied
+volk.fbx geometry and textures are not changed or granted by this notice.

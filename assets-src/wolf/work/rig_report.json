@@ -1,0 +1,122 @@
+{
+  "source_fbx": "C:\\devlad\\shulgan\\assets-src\\wolf\\source\\volk.fbx",
+  "donor": "C:\\devlad\\shulgan\\assets-src\\wolf\\source\\Quaternius_Wolf.glb",
+  "license": "Donor animations CC0; supplied mesh ownership unchanged",
+  "bones": 48,
+  "deform_bones": 46,
+  "vertices": 24831,
+  "triangles": 49922,
+  "max_influences": 4,
+  "unweighted_vertices": 0,
+  "actions": {
+    "idle": {
+      "source": "Idle",
+      "frames": [
+        0,
+        80
+      ],
+      "duration": 3.3333333333333335,
+      "max_leg_reach_correction": 0
+    },
+    "idle_look": {
+      "source": "Idle_2",
+      "frames": [
+        0,
+        80
+      ],
+      "duration": 3.3333333333333335,
+      "max_leg_reach_correction": 0
+    },
+    "idle_low": {
+      "source": "Idle_2_HeadLow",
+      "frames": [
+        0,
+        96
+      ],
+      "duration": 4.0,
+      "max_leg_reach_correction": 0
+    },
+    "walk": {
+      "source": "Walk",
+      "frames": [
+        0,
+        25
+      ],
+      "duration": 1.0416666666666667,
+      "max_leg_reach_correction": 0
+    },
+    "run": {
+      "source": "Gallop",
+      "frames": [
+        0,
+        13
+      ],
+      "duration": 0.5416666666666666,
+      "max_leg_reach_correction": 0.0365915704887477
+    },
+    "run_jump": {
+      "source": "Gallop_Jump",
+      "frames": [
+        0,
+        22
+      ],
+      "duration": 0.9166666666666666,
+      "max_leg_reach_correction": 0.062602044110067
+    },
+    "jump": {
+      "source": "Jump_ToIdle",
+      "frames": [
+        0,
+        32
+      ],
+      "duration": 1.3333333333333333,
+      "max_leg_reach_correction": 0.06255804455101913
+    },
+    "attack": {
+      "source": "Attack",
+      "frames": [
+        0,
+        32
+      ],
+      "duration": 1.3333333333333333,
+      "max_leg_reach_correction": 0
+    },
+    "hit_left": {
+      "source": "Idle_HitReact_Left",
+      "frames": [
+        0,
+        16
+      ],
+      "duration": 0.6666666666666666,
+      "max_leg_reach_correction": 0.01708330226547794
+    },
+    "hit_right": {
+      "source": "Idle_HitReact_Right",
+      "frames": [
+        0,
+        16
+      ],
+      "duration": 0.6666666666666666,
+      "max_leg_reach_correction": 0.00851328548413588
+    },
+    "death": {
+      "source": "Death",
+      "frames": [
+        0,
+        25
+      ],
+      "duration": 1.0416666666666667,
+      "max_leg_reach_correction": 0.048303080131567144
+    },
+    "eat": {
+      "source": "Eating",
+      "frames": [
+        0,
+        60
+      ],
+      "duration": 2.5,
+      "max_leg_reach_correction": 0
+    }
+  },
+  "max_leg_reach_correction": 0.062602044110067
+}
