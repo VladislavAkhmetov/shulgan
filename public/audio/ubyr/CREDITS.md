@@ -31,13 +31,18 @@ Source pages and licenses checked on 2026-11-04.
 
 ## Earth movement
 
-**Shovel Sound — themightyglider**, derived from a recording by **RavenWolfProds**.
+**Hand digging dirt, leaves crunch.wav — SpliceSound**, Freesound 260130.
 
-- Source: https://opengameart.org/content/shovel-sound
-- Original recording: https://freesound.org/people/RavenWolfProds/sounds/503672/
-- Download: https://opengameart.org/sites/default/files/shovel_0.ogg
+- Source: https://freesound.org/people/SpliceSound/sounds/260130/
+- Source media (HQ MP3): https://cdn.freesound.org/previews/260/260130_1480854-hq.mp3
 - License on source page: CC0.
-- Shipped file: soil.ogg (unchanged recording). Layered and retimed in-game for emergence.
+- Recording description: digging through leaves and dense dirt with hands.
+- Shipped files: earth-emerge-1.wav, earth-emerge-2.wav, 1.85 seconds each, mono PCM16 / 24000 Hz.
+- Each contains three edited pulls of real soil/leaf recordings at 0 / 0.42 / 1.00 seconds, followed by settling debris.
+- Variant 1 source ranges: 7.50–8.10, 9.00–9.67, 0.50–1.20 seconds. Playback rates: 0.84 / 0.90 / 0.82.
+- Variant 2 source ranges: 13.00–13.60, 0.80–1.47, 15.00–15.70 seconds. Same playback rates.
+- Subsonic rumble is removed, a filtered copy supplies body, peaks are softened and levels matched to RMS 0.21.
+- The old, quiet Shovel Sound / soil.ogg has been removed.
 
 ## Processing
 
@@ -46,6 +51,9 @@ softly saturated, level-matched and faded at the edges. Output is PCM16 WAV at 2
 Runtime playback adds small individual pitch differences, HRTF positioning, forest reverb,
 and a low-pass filter for voices below the ground. No remote audio service is used at runtime.
 
-Rebuild: extract the original zombie WAVs into a source folder and decode the 2106 MP3 as
+Rebuild voices: extract the original zombie WAVs into a source folder and decode the 2106 MP3 as
 `2106.wav` in that folder (for example `ffmpeg -i 2106.mp3 -ac 1 -ar 22050 2106.wav`).
-Run `node tools/ubyr-audio.mjs <source-folder>`. Keep the CC0 soil.ogg beside the resulting WAVs.
+Run `node tools/ubyr-audio.mjs <source-folder>`.
+
+Rebuild earth: decode the SpliceSound recording to mono PCM16 / 24000 Hz (`ffmpeg -i input.mp3 -ac 1 -ar 24000 earth.wav`),
+then run `node tools/ubyr-earth.mjs earth.wav`. All audible material in these cues comes from the source recording.
