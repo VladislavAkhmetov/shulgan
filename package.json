@@ -10,6 +10,7 @@
     "assets:ubyr": "node tools/ubyr-rig.mjs",
     "assets:wolf": "node tools/wolf-export.mjs",
     "check:wolf": "node tools/wolf-motion-check.mjs",
+    "assets:marten-v2": "node tools/marten-v2-assets.mjs",
     "format": "oxfmt"
   },
   "dependencies": {

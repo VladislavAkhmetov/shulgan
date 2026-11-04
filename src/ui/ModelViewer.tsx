@@ -19,6 +19,10 @@ const MARTEN_POSES: Record<string, [MartenPose, number, number]> = {
   рысь: ['stand', 3, 0],
   галоп: ['stand', 6.5, 0],
   поворот: ['stand', 4, 1.6],
+  клубок: ['curl', 0, 0],
+  свернуться: ['curl', 0, 0],
+  развернуться: ['stand', 0, 0],
+  'поворот вправо': ['stand', 4, -1.6],
 }
 
 const WOLF_POSES = ['стоит', 'шаг', 'галоп', 'поворот влево', 'поворот вправо', 'атака', 'ранение', 'оглушение', 'испуг', 'смерть']
@@ -32,6 +36,7 @@ export function ModelViewer({ src = 'hero_rig' }: { src?: string }) {
   const host = useRef<HTMLDivElement>(null)
   const api = useRef<{ setOutfit: (o: string | null) => void; play: (c: string) => void } | null>(null)
   const skeletonToggle = useRef<(() => void) | null>(null)
+  const cameraView = useRef<((view: 'angle' | 'top' | 'side') => void) | null>(null)
   const [outfits, setOutfits] = useState<string[]>([])
   const [clips, setClips] = useState<string[]>([])
   const [outfit, setOutfit] = useState<string | null>(null)
@@ -51,9 +56,17 @@ export function ModelViewer({ src = 'hero_rig' }: { src?: string }) {
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.target.set(0, 0.95, 0)
     controls.enableDamping = true
-    if (src === 'marten') {
-      camera.position.set(1.7, 0.75, 1.9)
-      controls.target.set(0, 0.22, 0)
+    const isMarten = src === 'marten' || src === 'marten_v2'
+    if (isMarten) {
+      camera.position.set(1.7, 0.9, 1.9)
+      controls.target.set(0, 0.20, 0)
+      cameraView.current = (view) => {
+        if (view === 'top') camera.position.set(0, 2.2, 0.001)
+        else if (view === 'side') camera.position.set(2, 0.45, 0)
+        else camera.position.set(1.7, 0.9, 1.9)
+        controls.target.set(0, 0.20, 0)
+        controls.update()
+      }
     }
     if (src === 'wolf_rig' || src === 'wolf_game') {
       camera.position.set(2.9, 1.5, 3.1)
@@ -99,7 +112,7 @@ export function ModelViewer({ src = 'hero_rig' }: { src?: string }) {
         else { preview.helper = new THREE.SkeletonHelper(preview.rig.root); scene.add(preview.helper) }
       }
     }
-    if (src === 'marten') {
+    if (isMarten) {
       marten = { body: null, pose: 'стоит', helper: null }
       const m = marten
       loadMarten('/models/marten.glb').then((b) => {
@@ -110,11 +123,16 @@ export function ModelViewer({ src = 'hero_rig' }: { src?: string }) {
         setInfo(`Треугольники — ${Math.round((g.index ? g.index.count : g.attributes.position.count) / 3)}, кости — ${b.bones.length}`)
         setClips(Object.keys(MARTEN_POSES))
         setClip('стоит')
-      })
+      }).catch(() => { if (!disposed) setInfo('Не удалось загрузить куницу') })
       api.current = {
         setOutfit: () => {},
         play: (c) => {
           m.pose = c
+          if (m.body) {
+            const a = m.body.animator
+            if (c === 'свернуться') a.snap('stand')
+            if (c === 'развернуться' || c === 'клубок') a.snap('curl')
+          }
         },
       }
       skeletonToggle.current = () => {
@@ -133,7 +151,7 @@ export function ModelViewer({ src = 'hero_rig' }: { src?: string }) {
     const parts: Record<string, THREE.Object3D> = {}
     let raf = 0
     let disposed = false
-    if (src !== 'marten' && src !== 'wolf_game') new GLTFLoader().load(`/models/${src}.glb`, (gltf) => {
+    if (!isMarten && src !== 'wolf_game') new GLTFLoader().load(`/models/${src}.glb`, (gltf) => {
       if (disposed) return
       const root = gltf.scene
       if (src === 'wolf_rig') { root.rotation.y = Math.PI / 2; root.updateMatrixWorld(true) }
@@ -268,11 +286,16 @@ export function ModelViewer({ src = 'hero_rig' }: { src?: string }) {
             <button key={c} className={btn(clip === c)} onClick={() => setClip(c)}>{c}</button>
           ))}
         </div>
-        {(src === 'marten' || src === 'wolf_game') && (
+        {(src === 'marten' || src === 'marten_v2' || src === 'wolf_game') && (
           <div>
             <button className={btn(false)} onClick={() => skeletonToggle.current?.()}>скелет</button>
           </div>
         )}
+        {(src === 'marten' || src === 'marten_v2') && <div className="flex gap-2">
+          <button className={btn(false)} onClick={() => cameraView.current?.('angle')}>¾</button>
+          <button className={btn(false)} onClick={() => cameraView.current?.('top')}>сверху</button>
+          <button className={btn(false)} onClick={() => cameraView.current?.('side')}>сбоку</button>
+        </div>}
         <div className="font-ui text-[13px] text-bone/60">{info}. Мышь — вращать, колесо — приблизить.</div>
       </div>
     </div>

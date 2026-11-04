@@ -1,0 +1,62 @@
+{
+  "bones": 45,
+  "vertices": 24520,
+  "clips": [
+    "idle",
+    "walk",
+    "trot",
+    "bound",
+    "turn_left",
+    "turn_right",
+    "sit",
+    "alert",
+    "sniff",
+    "crouch",
+    "trapped",
+    "sleep_curled",
+    "curl_enter",
+    "curl_exit"
+  ],
+  "minY": {
+    "idle": 0.00528954666004892,
+    "walk": 0.005999999414963166,
+    "trot": 0.00599999925995087,
+    "bound": 0.006000000696376189,
+    "turn_left": 0.005999999222484526,
+    "turn_right": 0.005188612089520531,
+    "sit": 0.00525141961023907,
+    "alert": 0.005910401246023031,
+    "sniff": 0.0074041895203688195,
+    "crouch": 0.006000000831001149,
+    "trapped": 0.006000001549673668,
+    "sleep_curled": 0.001693024214401518,
+    "curl_enter": 0.0016930238567762243,
+    "curl_exit": 0.0019206813973953294
+  },
+  "contact": {
+    "head": [
+      -0.10340322219602391,
+      0.14390683513470193,
+      0.1033079867115988
+    ],
+    "tail": [
+      -0.16761373819376166,
+      0.08393091906251524,
+      0.031075063324328425
+    ]
+  },
+  "maximumWeightError": 4.4819898903369904e-8,
+  "maximumLegLengthError": 0.000040375096374688224,
+  "maximumFrameAngle": 0.7795933279193247,
+  "maximumGaitRollError": 5.16191365590357e-8,
+  "maximumElbowForward": -0.0353222386301486,
+  "minimumForearmAlignment": 0.9999999999999996,
+  "minimumAirborneExtension": 0.9849999999999993,
+  "minimumFlightRise": 0.042227651122569265,
+  "extensionPreviewFrame": 4,
+  "maximumFrameAngleAt": {
+    "name": "curl_exit",
+    "frame": 13,
+    "bone": "kneeHL_v2"
+  }
+}

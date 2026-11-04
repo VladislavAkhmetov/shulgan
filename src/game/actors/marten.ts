@@ -1,10 +1,9 @@
 import * as THREE from 'three'
 import { Actor } from './actor'
-import { part, Quadruped, type Clip } from './rig'
+import { Rig, type Spring, type V3 } from './rig'
 import { loadMarten, type MartenBody, type MartenPose } from './martenRig'
 import type { Enemy } from './enemies'
 import type { World } from '../world'
-import { glow, std } from '../render/materials'
 import { dampAngle, rand, wrapAngle } from '../util'
 
 /**
@@ -13,51 +12,19 @@ import { dampAngle, rand, wrapAngle } from '../util'
  * every unseen enemy within reach is marked for him (Game draws the marks).
  */
 
-// larger than life on purpose: at the iso camera a true-size marten is a dozen pixels
-const SCALE = 0.5
 const SENSE_R = 22
 
-export const MARTEN_CLIPS: Record<string, Clip> = {
-  // caught: lying on her side, the trapped paw stretched out
-  trapped: [
-    { t: 0, p: { pelvis: [0.05, 0, 1.15], chest: [0.08, 0, 0.1], neck: [0.25, 0.35, -0.3], head: [0.15, 0.3, -0.2], uFL: [-1.1, 0, 0], lFL: [0.2, 0, 0], uFR: [-0.4, 0, 0], lFR: [0.9, 0, 0], uBL: [0.5, 0, 0], lBL: [0.7, 0, 0], uBR: [0.3, 0, 0], lBR: [0.9, 0, 0], tail: [0.1, 0.5, 0] }, b: [-0.36, 0, 0] },
-    { t: 1, p: { pelvis: [0.06, 0, 1.12], chest: [0.12, 0, 0.14], neck: [0.15, 0.55, -0.3], head: [0.05, 0.45, -0.2] }, b: [-0.37, 0, 0] },
-  ],
-  // sitting up, watching
-  sit: [{ t: 0, p: { chest: [-0.35, 0, 0], neck: [-0.2, 0, 0], head: [0.25, 0, 0], uBL: [-1.0, 0, 0], lBL: [1.8, 0, 0], uBR: [-1.0, 0, 0], lBR: [1.8, 0, 0], uFL: [0.2, 0, 0], uFR: [0.2, 0, 0], tail: [0.5, 0, 0] }, b: [-0.12, -0.05, -0.35] }],
-  // up on the hind legs, nose to the threat
-  alert: [
-    { t: 0, p: { chest: [-0.6, 0, 0], neck: [-0.3, 0, 0], head: [0.45, 0, 0], uFL: [-0.9, 0, 0], lFL: [1.2, 0, 0], uFR: [-0.9, 0, 0], lFR: [1.2, 0, 0], uBL: [-0.9, 0, 0], lBL: [1.4, 0, 0], uBR: [-0.9, 0, 0], lBR: [1.4, 0, 0], tail: [0.9, 0, 0] }, b: [0.1, -0.1, -0.95] },
-    { t: 1, p: { head: [0.35, 0.25, 0] }, b: [0.12, -0.1, -1.0] },
-  ],
-  // nose to the ground over a sign
-  sniff: [
-    { t: 0, p: { neck: [0.7, 0, 0], head: [0.3, 0.2, 0], tail: [0.2, 0, 0] }, b: [-0.05, 0, 0.2] },
-    { t: 1, p: { neck: [0.75, 0, 0], head: [0.35, -0.2, 0] }, b: [-0.05, 0, 0.22] },
-  ],
-}
-
-export function createMarten() {
-  const fur = std(0x9a6232, 0.9)
-  const dark = std(0x3e2614, 0.9)
-  const rig = new Quadruped({ bodyLen: 1.25, height: 0.42, legR: 0.045, fur, dark, runSpeed: 7 })
-  const J = rig.joints
-  // the cream bib on the throat, round ears, a bushy tail
-  part(new THREE.SphereGeometry(0.19, 8, 6), std(0xecd3a0, 0.9), J.chest, 0, -0.06, 0.16).scale.set(0.9, 1.15, 0.8)
-  for (const s of [-1, 1]) part(new THREE.SphereGeometry(0.06, 6, 5), dark, J.head, s * 0.1, 0.14, -0.04).scale.set(1, 1, 0.5)
-  for (let i = 0; i < 5; i++) part(new THREE.SphereGeometry(0.11 - i * 0.008, 6, 5), fur, J.tail, 0, -0.08 - i * 0.03, -0.18 - i * 0.12).scale.set(1, 1, 1.4)
-  // night eyeshine, so she reads in the dark
-  const eye = glow(1.4, 0.95, 0.45)
-  for (const s of [-1, 1]) part(new THREE.SphereGeometry(0.034, 6, 4), eye, J.head, s * 0.07, 0.05, 0.13)
-  rig.root.scale.setScalar(SCALE)
-  rig.root.traverse((o) => ((o as THREE.Mesh).castShadow = true))
-  return rig
+/** Actor transform only; the loaded skin is the sole visible companion. */
+class MartenSceneRig extends Rig {
+  protected springFor(): Spring { return [6, 1, 0] }
+  protected locomotion(): V3 { return [0, 0, 0] }
 }
 
 export type MartenState = 'trapped' | 'freed' | 'follow' | 'alert' | 'hide' | 'sniff'
 
 export class Marten extends Actor {
-  rig: Quadruped
+  rig: MartenSceneRig
+  readonly ready: Promise<boolean>
   state: MartenState = 'trapped'
   /** enemies she smells right now (unseen by Timer) */
   readonly sensed: Enemy[] = []
@@ -73,26 +40,28 @@ export class Marten extends Actor {
   private whimperT = 2
   private side = 1
   private hideT = 0
-  /** the GLB body with its own skeleton and animator (docs/COMPANION.md); the procedural one is the fallback */
+  /** The current 45-bone companion, shared with the model viewer. */
   private body: MartenBody | null = null
   private prevFacing = 0
   private moteT = 0
+  private idleT = 0
+  private wakeT = 0
 
   constructor(w: World, at: THREE.Vector3) {
     super(w)
-    this.rig = createMarten()
+    this.rig = new MartenSceneRig()
     w.scene.add(this.rig.root)
-    loadMarten('/models/marten.glb')
+    this.ready = loadMarten('/models/marten.glb')
       .then((b) => {
         this.body = b
-        w.scene.add(b.root)
-        this.rig.root.visible = false
+        this.rig.root.add(b.root)
         b.animator.snap(this.state === 'trapped' ? 'trapped' : 'stand')
-        b.root.position.set(this.pos.x, 0, this.pos.z)
-        b.root.rotation.y = this.facing
+        b.root.position.set(0, 0, 0)
+        b.root.rotation.y = 0
         this.prevFacing = this.facing
+        return true
       })
-      .catch((e) => console.warn('marten.glb', e))
+      .catch((e) => { console.warn('marten.glb', e); return false })
     this.pos.copy(at)
     this.radius = 0.2
     this.facing = 1.2
@@ -117,14 +86,16 @@ export class Marten extends Actor {
     const w = this.w
     const p = w.player
     this.st += dt
-    let clip: Clip | null = null
-    let ct = 0
+    let pose: MartenPose = 'stand'
     let speed = 0
     const toP = Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z)
+    const canRest = this.state === 'follow' && p.speedNow < 0.2 && toP >= 3 && toP <= 4.8 && !this.combat && !this.clue && this.sensed.length === 0
+    if (canRest) this.idleT += dt
+    else { if (this.idleT > 8) this.wakeT = 1.2; this.idleT = 0 }
+    this.wakeT = Math.max(0, this.wakeT - dt)
 
     if (this.state === 'trapped') {
-      clip = MARTEN_CLIPS.trapped
-      ct = 0.5 + 0.5 * Math.sin(this.st * 7)
+      pose = 'trapped'
       this.whimperT -= dt
       if (this.whimperT <= 0) {
         // heard before she is seen
@@ -134,7 +105,7 @@ export class Marten extends Actor {
     } else if (this.state === 'freed') {
       if (this.st < 0.9) speed = this.runTo(this.goal, 5.5, dt)
       else {
-        clip = MARTEN_CLIPS.sit
+        pose = 'sit'
         this.face(p.pos, dt)
         if (this.st > 3.2) this.state = 'follow'
       }
@@ -142,8 +113,7 @@ export class Marten extends Actor {
       this.sense(dt)
       if (toP > 26) this.catchUp()
       if (this.state === 'alert') {
-        clip = MARTEN_CLIPS.alert
-        ct = Math.min(1, this.st / 0.4)
+        pose = 'alert'
         if (this.alertAt) this.face(this.alertAt.pos, dt)
         if (this.st > 1.4) this.state = 'follow'
       } else if (this.combat || (this.state === 'hide' && this.hideT > 0)) {
@@ -164,15 +134,18 @@ export class Marten extends Actor {
         this.goal.set(this.clue.x + 0.6, 0, this.clue.z + 0.4)
         speed = this.runTo(this.goal, 4.5, dt)
         if (speed < 0.1) {
-          clip = MARTEN_CLIPS.sniff
-          ct = 0.5 + 0.5 * Math.sin(this.st * 3)
+          pose = 'sniff'
           this.face(this.clue, dt)
         }
       } else {
         this.state = 'follow'
         // stay within Timer's peripheral sight (~4.6 m) but never at his feet; when he moves she scouts a little ahead
         const moving = p.speedNow > 0.5
-        if (moving || toP > 4.8 || toP < 3) {
+        if (this.wakeT > 0 && !this.combat) {
+          this.face(p.pos, dt)
+        } else if (this.idleT > 8) {
+          pose = 'curl'
+        } else if (moving || toP > 4.8 || toP < 3) {
           const ahead = p.facing + this.side * 0.75
           let gx = p.pos.x + Math.sin(ahead) * 3.9
           let gz = p.pos.z + Math.cos(ahead) * 3.9
@@ -194,7 +167,7 @@ export class Marten extends Actor {
           }
           speed = this.runTo(this.goal, 1.4, dt)
           if (speed < 0.1) {
-            clip = this.st % 7 < 3.5 ? MARTEN_CLIPS.sit : null
+            pose = this.st % 7 < 3.5 ? 'sit' : 'stand'
             this.face(p.pos, dt)
           }
         }
@@ -203,20 +176,14 @@ export class Marten extends Actor {
 
     this.speedNow = speed
     this.syncRig()
-    if (this.body) this.driveBody(dt, clip, toP)
-    else this.rig.update(dt, { speed: this.speedNow / SCALE / 2.2, forward: 1, clip, t: ct, time: w.time, snap: this.state === 'alert' ? 2 : 1.2 })
+    if (this.body) this.driveBody(dt, pose, toP)
   }
 
   /** what she is doing → a pose, a gaze and a speed for her animator */
-  private driveBody(dt: number, clip: Clip | null, toP: number) {
+  private driveBody(dt: number, pose: MartenPose, toP: number) {
     const b = this.body!
     const p = this.w.player
-    let pose: MartenPose = 'stand'
-    if (clip === MARTEN_CLIPS.trapped) pose = 'trapped'
-    else if (clip === MARTEN_CLIPS.sit) pose = 'sit'
-    else if (clip === MARTEN_CLIPS.alert) pose = 'alert'
-    else if (clip === MARTEN_CLIPS.sniff) pose = 'sniff'
-    else if (this.state === 'hide' && this.speedNow < 0.3) pose = 'crouch'
+    if (this.state === 'hide' && this.speedNow < 0.3) pose = 'crouch'
     let look: THREE.Vector3 | null = null
     if (pose === 'alert' && this.alertAt) look = this.alertAt.pos
     else if (pose === 'sniff' && this.clue) look = this.clue
@@ -224,8 +191,7 @@ export class Marten extends Actor {
     else if (pose === 'trapped' || this.speedNow < 0.4) look = toP < 14 ? new THREE.Vector3(p.pos.x, 1.2, p.pos.z) : null
     const rate = dt > 0 ? wrapAngle(this.facing - this.prevFacing) / dt : 0
     this.prevFacing = this.facing
-    b.root.position.set(this.pos.x, 0, this.pos.z)
-    b.root.rotation.y = this.facing
+    // syncRig owns world placement; the skin stays local to the actor root.
     b.animator.update(dt, { speed: this.speedNow, turnRate: rate, pose, look, time: this.w.time, warn: this.sensed.length > 0 })
     // now and then a golden mote leaves her fur
     this.moteT -= dt
