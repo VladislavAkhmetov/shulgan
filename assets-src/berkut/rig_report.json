@@ -1,0 +1,54 @@
+{
+  "bones": 84,
+  "deform_bones": 83,
+  "vertices": 24975,
+  "triangles": 49994,
+  "actions": {
+    "flight_flap": {
+      "duration": 1.0,
+      "loop": true
+    },
+    "climb": {
+      "duration": 1.0,
+      "loop": true
+    },
+    "soar": {
+      "duration": 2.0,
+      "loop": true
+    },
+    "circle_left": {
+      "duration": 2.0,
+      "loop": true
+    },
+    "circle_right": {
+      "duration": 2.0,
+      "loop": true
+    },
+    "dive": {
+      "duration": 0.5,
+      "loop": false
+    },
+    "talon_strike": {
+      "duration": 0.6,
+      "loop": false
+    },
+    "pull_up": {
+      "duration": 0.8,
+      "loop": false
+    },
+    "beak_call": {
+      "duration": 1.6,
+      "loop": false
+    },
+    "talon_grip": {
+      "duration": 1.2,
+      "loop": false
+    },
+    "showcase": {
+      "duration": 6.1,
+      "loop": false
+    }
+  },
+  "max_influences": 4,
+  "unweighted": 0
+}

@@ -292,6 +292,7 @@ export class Game implements World {
     this.ro.disconnect()
     window.removeEventListener('keydown', this.onKey)
     this.input.dispose()
+    this.eagle?.dispose()
     this.post?.dispose()
     this.vision?.dispose()
     this.audio.dispose()

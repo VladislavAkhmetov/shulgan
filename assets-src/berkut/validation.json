@@ -1,0 +1,66 @@
+{
+  "loop_checks": {
+    "flight_flap": {
+      "quaternion_seam_error": 0.0,
+      "passed": true
+    },
+    "climb": {
+      "quaternion_seam_error": 0.0,
+      "passed": true
+    },
+    "soar": {
+      "quaternion_seam_error": 0.0,
+      "passed": true
+    },
+    "circle_left": {
+      "quaternion_seam_error": 0.0,
+      "passed": true
+    },
+    "circle_right": {
+      "quaternion_seam_error": 0.0,
+      "passed": true
+    }
+  },
+  "deformation_samples": [
+    {
+      "action": "flight_flap",
+      "frame": 0,
+      "edge_stretch_p99": 1.9370806671145588,
+      "edge_stretch_max": 11.338835240903753
+    },
+    {
+      "action": "flight_flap",
+      "frame": 7,
+      "edge_stretch_p99": 1.6847377291599732,
+      "edge_stretch_max": 10.99237080243834
+    },
+    {
+      "action": "flight_flap",
+      "frame": 15,
+      "edge_stretch_p99": 1.922907787305518,
+      "edge_stretch_max": 11.338835240903753
+    },
+    {
+      "action": "dive",
+      "frame": 15,
+      "edge_stretch_p99": 2.7385124824177316,
+      "edge_stretch_max": 16.0570760955154
+    },
+    {
+      "action": "talon_strike",
+      "frame": 9,
+      "edge_stretch_p99": 2.7157995330638514,
+      "edge_stretch_max": 12.82429354654432
+    },
+    {
+      "action": "talon_grip",
+      "frame": 24,
+      "edge_stretch_p99": 2.4985666314200214,
+      "edge_stretch_max": 10.996305987431704
+    }
+  ],
+  "game_triangles": 19996,
+  "glb_bytes": 11958092,
+  "weight_sums_max_error": 4.9155123527100386e-08,
+  "weighted_jaw_vertices": 250
+}

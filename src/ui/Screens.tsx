@@ -83,6 +83,7 @@ function Title({ game }: { game: Game }) {
       </div>
       <div className="absolute bottom-7 left-8 font-ui text-[13px] text-bone/40">Играйте в наушниках: здесь многое слышно раньше, чем видно</div>
       <div className="absolute bottom-7 right-8 text-right font-ui text-[13px] text-bone/30">
+        <a href="/#viewer=berkut" className="mb-1 block text-amber/65 hover:text-amber">Полигон беркута · движения и атаки</a>
         <a href="/audio/wolf/CREDITS.md" target="_blank" rel="noopener noreferrer" className="mb-1 block underline decoration-bone/20 underline-offset-4 hover:text-bone/70">Звуки волков · авторы</a>
         <div>Вертикальный срез · глава первая</div>
       </div>

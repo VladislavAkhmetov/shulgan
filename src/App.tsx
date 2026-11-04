@@ -3,6 +3,7 @@ import { Game } from './game/Game'
 import { Hud } from './ui/Hud'
 import { Screens } from './ui/Screens'
 import { ModelViewer } from './ui/ModelViewer'
+import { EagleViewer } from './ui/EagleViewer'
 
 // the hash is read live: typing /#viewer=… into an open page only fires `hashchange` (no reload)
 const onHash = (cb: () => void) => {
@@ -16,6 +17,7 @@ export default function App() {
   // /#viewer: asset check page instead of the game
   if (hash.startsWith('#viewer')) {
     const name = hash.split('=')[1] || 'hero_rig'
+    if (name === 'berkut' || name === 'berkut_rig') return <EagleViewer />
     return (
       <div className="h-full w-full bg-[#020306]">
         <ModelViewer key={name} src={name} />
