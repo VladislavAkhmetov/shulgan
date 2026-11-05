@@ -1150,7 +1150,6 @@ export class Player extends Actor {
     const f = L.focus
     const fTarget = this.focus && on ? 60 * kit.lightMult : 0
     f.intensity += (fTarget - f.intensity) * (1 - Math.exp(-10 * dt))
-    f.visible = f.intensity > 0.05
     f.position.set(this.v.x, this.v.y + 0.9, this.v.z)
     f.target.position.set(this.pos.x + Math.sin(this.gaze) * 9, 0, this.pos.z + Math.cos(this.gaze) * 9)
     f.target.updateMatrixWorld()

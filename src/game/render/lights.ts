@@ -65,9 +65,8 @@ export class Lighting {
     scene.add(this.lantern)
 
     this.focus = new THREE.SpotLight(new THREE.Color(1.0, 0.6, 0.28), 0, 15, 0.42, 0.55, 1.3)
-    // in the scene only while the focus is held: every lit material skips its cost the rest of the time
-    // (both light states are compiled up front by Game.build, so switching it never stalls)
-    this.focus.visible = false
+    // Keep the light count stable. Hiding this light changes shader keys, including depth/distance passes.
+    // At rest its intensity is zero; holding F changes uniforms, never the set of lights.
     scene.add(this.focus, this.focus.target)
 
     for (let i = 0; i < POOL; i++) {

@@ -11,7 +11,7 @@ import { Chapter3 } from './chapter3'
 import { Field } from './level/field'
 import { buildLevel, moonLevel, shaftTime, updateEmitters, type Barrier, type Brazier, type ColdFire, type Drop, type LevelBuild } from './level/build'
 import type { Halo } from './level/dressing'
-import { assignShadowLayers, limb, trimShadows } from './level/geo'
+import { assignShadowLayers, LAYER_LANTERN_SHADOW, limb, trimShadows } from './level/geo'
 import { Lighting } from './render/lights'
 import { projScale, VFX } from './render/vfx'
 import { Vision } from './render/vision'
@@ -168,6 +168,9 @@ export class Game implements World {
   private fpsAcc = 0
   private fpsN = 0
   private fps = 60
+  private frameMs = 16.7
+  private frameP95 = 16.7
+  private frameTimes: number[] = []
   narrQueue: Say[] = []
   private narrT = 0
   private narrId = 0
@@ -214,9 +217,15 @@ export class Game implements World {
   private redTaught = false
   private springUsedOnce = false
   private debug = false
+  private debugHudT = 0
+  private debugShieldShadow = true
+  private debugLanternShadow = true
+  private debugShadowFrozen = false
+  private debugGpu = ''
   private tmpV = new THREE.Vector3()
   private quality: 'high' | 'low' = 'high'
   private buildTimer = 0
+  private disposed = false
   private frameN = 0
   private roots: RootTrap[] = []
   private rootMat = std(0x0b0806, 0.9)
@@ -235,6 +244,11 @@ export class Game implements World {
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFShadowMap
     this.renderer.shadowMap.autoUpdate = false
+    // Vision, shadows and postprocessing all belong to one frame, not just the final fullscreen draw.
+    this.renderer.info.autoReset = false
+    const gl = this.renderer.getContext()
+    const gpu = gl.getExtension('WEBGL_debug_renderer_info')
+    this.debugGpu = String(gl.getParameter(gpu ? gpu.UNMASKED_RENDERER_WEBGL : gl.RENDERER))
     this.renderer.setClearColor(0x020306, 1)
     Object.assign(this.renderer.domElement.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', display: 'block' })
     container.appendChild(this.renderer.domElement)
@@ -252,7 +266,7 @@ export class Game implements World {
 
   // ------------------------------------------------------------------ setup
 
-  private build() {
+  private async build() {
     const t0 = performance.now()
     const def = this.def
     this.zones = def.zones
@@ -279,8 +293,9 @@ export class Game implements World {
     this.player = new Player(this)
     // the hero's Mixamo body; if it fails, the static GLB skinned to the procedural rig; if that fails, the procedural body
     const pl = this.player
-    HeroAnimator.load(pl.rig, '/models/hero_rig.glb', 1.82, pl.model.props, pl.rig.flashMats)
+    const heroReady = HeroAnimator.load(pl.rig, '/models/hero_rig.glb', 1.82, pl.model.props, pl.rig.flashMats)
       .then((a) => {
+        if (this.disposed) return
         pl.anim = a
         a.setOutfit('kaftan')
         this.scene.add(a.root)
@@ -344,12 +359,24 @@ export class Game implements World {
     assignShadowLayers(this.player.rig.root)
     for (const e of this.enemies) assignShadowLayers(e.rig.root)
     console.info(`[urman] shadow casters trimmed: ${trimmed}`)
+    // Tag gear before GLB attachment reparents it, then include the late materials in shader warm-up.
+    hud.set({ loadingText: 'Образы проступают…' })
+    await Promise.allSettled([
+      heroReady,
+      this.eagle.ready,
+      this.marten?.ready,
+      ...this.enemies.map((e) => 'ready' in e.rig ? e.rig.ready : undefined),
+    ])
+    if (this.disposed) return
     this.camTarget.copy(this.player.pos)
     this.resize()
     this.updateCamera(1)
     this.player.update(0.016, this.input)
     for (const e of this.enemies) e.update(0.016)
-    this.precompile()
+    this.lighting.update(0, this.player.pos)
+    hud.set({ loadingText: 'Огонь разгорается…' })
+    await this.precompile()
+    if (this.disposed) return
     this.ready = true
     console.info(`[urman] level built in ${Math.round(performance.now() - t0)} ms, ${this.level.instancedMeshes} instanced batches`)
     hud.set({ loadingText: '' })
@@ -401,19 +428,27 @@ export class Game implements World {
   }
 
   /**
-   * Compile every shader before play: the gear shown only after the coal is taken (kalkan, bow, quiver, the arrow in hand)
-   * and both light states — with and without the heat focus cone — so neither the coal nor the first focus stalls a frame.
+   * Compile after GLBs attach, using the same HDR target as the scene pass.
+   * Compiling against the default framebuffer produces sRGB variants; gameplay needs linear HDR variants instead.
+   * Briefly include hidden gear in the offscreen shadow passes so its depth variants are ready too.
    */
-  private precompile() {
+  private async precompile() {
     const m = this.player.model
-    const hidden = [m.shield, m.shieldBack, m.bowHand, m.swordSheathed, m.arrowHand, m.arrowFlame, m.quiverArrows[0].parent!, ...m.quiverArrows].filter((o) => !o.visible)
+    const hidden = [...new Set([...m.props, m.swordSheathed, m.arrowFlame, ...m.quiverArrows])].filter((o) => !o.visible)
     for (const o of hidden) o.visible = true
-    const f = this.lighting.focus
-    f.visible = true
-    this.renderer.compile(this.scene, this.camera)
-    f.visible = false
-    this.renderer.compile(this.scene, this.camera)
-    for (const o of hidden) o.visible = false
+    const target = this.renderer.getRenderTarget()
+    this.renderer.setRenderTarget(this.post.sceneRT)
+    try {
+      await this.renderer.compileAsync(this.scene, this.camera)
+      if (this.disposed) return
+      // compileAsync prepares surface materials, not the depth materials created by the shadow renderer.
+      this.renderer.shadowMap.needsUpdate = true
+      this.lighting.lantern.shadow.needsUpdate = true
+      this.renderer.render(this.scene, this.camera)
+    } finally {
+      for (const o of hidden) o.visible = false
+      if (!this.disposed) this.renderer.setRenderTarget(target)
+    }
   }
 
   private setupEnvironmentAudio() {
@@ -467,6 +502,7 @@ export class Game implements World {
   }
 
   dispose() {
+    this.disposed = true
     clearTimeout(this.buildTimer)
     cancelAnimationFrame(this.raf)
     this.ro.disconnect()
@@ -628,7 +664,7 @@ export class Game implements World {
     this.quality = q
     this.renderer.setPixelRatio(q === 'high' ? Math.min(window.devicePixelRatio, 1.5) : 1)
     this.post.bloomOn = q === 'high'
-    this.lighting.lantern.castShadow = q === 'high'
+    this.lighting.lantern.castShadow = q === 'high' && this.debugLanternShadow
     this.resize()
     hud.set({ quality: q })
   }
@@ -1550,7 +1586,21 @@ export class Game implements World {
     this.field.updateFlow(this.player.pos.x, this.player.pos.z, true)
   }
 
+  private setDebugShieldShadow(enabled: boolean) {
+    this.debugShieldShadow = enabled
+    // Affect only casting into the vessel's map. The shield remains visible and keeps its moon shadow.
+    for (const root of [this.player.model.shield, this.player.model.shieldBack]) {
+      root.traverse((o) => {
+        if (!(o as THREE.Mesh).isMesh || !o.castShadow) return
+        if (enabled) o.layers.enable(LAYER_LANTERN_SHADOW)
+        else o.layers.disable(LAYER_LANTERN_SHADOW)
+      })
+    }
+    this.lighting.lantern.shadow.needsUpdate = true
+  }
+
   private onKey = (e: KeyboardEvent) => {
+    if (e.repeat && (e.code === 'Backquote' || (this.debug && /^Digit[456]$/.test(e.code)))) return
     if (e.code === 'Escape') {
       if (this.finalOpen) return
       if (this.choiceDrop) return this.closeChoice()
@@ -1560,9 +1610,35 @@ export class Game implements World {
       else if (s === 'paused') this.resume()
     }
     if (e.code === 'Backquote') {
+      e.preventDefault()
       this.debug = !this.debug
-      if (!this.debug) hud.set({ debug: null })
+      this.debugHudT = 0
+      if (!this.debug) {
+        if (this.ready) {
+          this.setDebugShieldShadow(true)
+          this.debugLanternShadow = true
+          this.debugShadowFrozen = false
+          this.lighting.lantern.castShadow = this.quality === 'high'
+        }
+        hud.set({ debug: null })
+      }
     }
+    if (!this.debug || !this.ready) return
+    if (e.code === 'Digit4') {
+      this.setDebugShieldShadow(!this.debugShieldShadow)
+    } else if (e.code === 'Digit5') {
+      this.debugLanternShadow = !this.debugLanternShadow
+      this.lighting.lantern.castShadow = this.quality === 'high' && this.debugLanternShadow
+      this.lighting.lantern.shadow.needsUpdate = true
+    } else if (e.code === 'Digit6') {
+      this.debugShadowFrozen = !this.debugShadowFrozen
+      this.lighting.lantern.shadow.needsUpdate = true
+    } else return
+    e.preventDefault()
+    this.debugHudT = 0
+    // Start a fresh timing window after changing a diagnostic mode; allow shaders to warm up before comparing.
+    this.frameTimes.length = 0
+    this.fpsAcc = this.fpsN = 0
   }
 
   // ------------------------------------------------------------------ loop
@@ -1574,8 +1650,13 @@ export class Game implements World {
     this.last = now
     this.fpsAcc += real
     this.fpsN++
+    this.frameTimes.push(real * 1000)
+    if (this.frameTimes.length > 120) this.frameTimes.shift()
     if (this.fpsAcc > 0.5) {
       this.fps = Math.round(this.fpsN / this.fpsAcc)
+      this.frameMs = (this.fpsAcc * 1000) / this.fpsN
+      const sorted = this.frameTimes.slice().sort((a, b) => a - b)
+      this.frameP95 = sorted[Math.ceil(sorted.length * 0.95) - 1]
       this.fpsAcc = 0
       this.fpsN = 0
     }
@@ -1592,6 +1673,7 @@ export class Game implements World {
     const simulate = screen === 'playing' || screen === 'dead' || screen === 'victory' || screen === 'epilogue' || screen === 'ending'
     const modal = !!this.choiceDrop || this.loreOpen || this.finalOpen
     this.input.enabled = screen === 'playing' && !modal && this.player.alive && !this.cine
+    this.renderer.info.reset()
     // The title has its own video backdrop; skip the world and vision passes.
     if (screen !== 'title') {
       if (simulate && !modal) this.update(rdt)
@@ -2339,7 +2421,10 @@ export class Game implements World {
 
     this.renderer.shadowMap.needsUpdate = true
     this.frameN++
-    this.lighting.lantern.shadow.needsUpdate = (this.frameN & 1) === 0 || (this.quality === 'high' && this.fps > 100)
+    const lanternShadow = this.lighting.lantern.shadow
+    if (!this.debugShadowFrozen) {
+      lanternShadow.needsUpdate = lanternShadow.needsUpdate || (this.frameN & 1) === 0 || (this.quality === 'high' && this.fps > 100)
+    }
     const ghosts = this.enemies.some((e) => e.revealT > 0 && e.alive && !e.visibleNow && !e.hidden)
     this.post.render(this.scene, this.camera, this.vision.texture, rdt, ghosts, this.overlay)
 
@@ -2356,9 +2441,19 @@ export class Game implements World {
         this.indicators.drawBar(((hp.x + 1) / 2) * w, ((1 - hp.y) / 2) * h, e.hp / e.maxHp, e.posture / e.maxPosture, e.finishable, marked ? e.marks : null)
       }
     }
-    if (this.debug) {
+    this.debugHudT -= rdt
+    if (this.debug && this.debugHudT <= 0) {
+      this.debugHudT = 0.25
       const i = this.renderer.info.render
-      hud.set({ debug: `${this.fps} fps · ${i.calls} draw · ${(i.triangles / 1000).toFixed(0)}k tris · ${this.enemies.filter((e) => e.alive).length} foes` })
+      hud.set({ debug: [
+        `${this.fps} fps · ${this.frameMs.toFixed(1)} ms avg · ${this.frameP95.toFixed(1)} ms p95`,
+        `${i.calls} draw · ${(i.triangles / 1000).toFixed(0)}k tris · ${size.x}×${size.y} · DPR ${this.renderer.getPixelRatio()}`,
+        `GPU: ${this.debugGpu}`,
+        `[4] Тень щита от огня: ${this.debugShieldShadow ? 'вкл' : 'выкл'}`,
+        `[5] Тень огня: ${this.lighting.lantern.castShadow ? 'вкл' : 'выкл'} · качество ${this.quality}`,
+        `[6] Карта тени: ${this.debugShadowFrozen ? 'заморожена' : 'обновляется'}`,
+        'Сравнивать через 3 с после переключения. [Ё / ~] Скрыть панель',
+      ].join('\n') })
     }
   }
 

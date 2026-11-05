@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Focus benchmark</title>
+    <style>
+      html, body, #game { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #020306; }
+      #report { position: absolute; z-index: 10; top: 12px; left: 12px; right: 12px; padding: 14px; color: #eee; background: #000e; font: 12px/1.6 monospace; white-space: pre-wrap; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="report">Загрузка моделей…</div>
+    <script type="module" src="/tools/focus-benchmark.mjs"></script>
+  </body>
+</html>

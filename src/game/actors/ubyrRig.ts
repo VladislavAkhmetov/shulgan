@@ -32,6 +32,7 @@ function blowTime(n: number, blow: typeof BLOWS[keyof typeof BLOWS]) {
 
 /** A separate skeleton, mixer and flash material per enemy; geometry and textures are shared. */
 export class UbyrRig extends Rig {
+  readonly ready: Promise<void>
   emerging = false
   private fallback = createUbyr()
   private mixer: THREE.AnimationMixer | null = null
@@ -47,7 +48,7 @@ export class UbyrRig extends Rig {
     super()
     this.root.add(this.fallback.root)
     template ??= new GLTFLoader().loadAsync('/models/ubyr_rig.glb')
-    void template
+    this.ready = template
       .then((gltf) => this.attach(gltf))
       .catch((e) => {
         console.warn('ubyr_rig.glb: using the procedural Ubyr', e)

@@ -296,7 +296,7 @@ export function Hud({ game }: { game: Game }) {
       {/* the scar on Aldar's chest flares: Shulgen is behind */}
       {s.scar > 0 && !menu && <div className="pointer-events-none absolute inset-0" style={{ opacity: Math.min(1, s.scar * 1.6), boxShadow: 'inset 0 0 180px rgba(200,190,230,0.45)', background: 'radial-gradient(circle at 50% 52%, rgba(230,220,255,0.18), transparent 22%)' }} />}
       {v.clog > 0 && playing && <div className="anim-quick absolute left-1/2 top-6 -translate-x-1/2 font-ui text-[13px] text-[#d9714f] text-shade"><Rich text="Прорези забиты тиной · вспышка [F] вычистит" /></div>}
-      {s.debug && <div className="absolute left-3 top-3 font-mono text-[11px] text-bone/60">{s.debug}</div>}
+      {s.debug && <div role="region" aria-label="Диагностика рендера" className="absolute right-3 top-3 max-w-[min(720px,calc(100%_-_24px))] whitespace-pre-line break-words bg-black/85 px-3 py-2 font-mono text-[12px] leading-relaxed text-bone">{s.debug}</div>}
       {lowHp && playing && <div className="absolute inset-0 shadow-[inset_0_0_160px_rgba(120,10,6,0.35)]" />}
     </div>
   )
