@@ -1,10 +1,13 @@
 // Tiny external store bridging the game loop and React HUD (useSyncExternalStore).
 
-import type { RpgSnapshot } from '../rpg/state'
+import type { KitSnapshot } from '../rpg/state'
 import type { JournalEntry } from '../clues'
 import type { TutorView } from '../tutor'
 
-export type Screen = 'title' | 'prologue' | 'epilogue' | 'loading' | 'playing' | 'paused' | 'dead' | 'victory'
+export type Screen = 'title' | 'prologue' | 'epilogue' | 'loading' | 'playing' | 'paused' | 'dead' | 'victory' | 'ending'
+
+/** the three endings (docs/STORY.md «Капли живой воды и три концовки») */
+export type EndingId = 'life' | 'blood' | 'shulgen'
 
 export interface Narration {
   id: number
@@ -25,22 +28,32 @@ export interface HudState {
   screen: Screen
   hp: number
   maxHp: number
-  sips: number
-  maxSips: number
   dodge: number
-  /** Запал 0..30: every 10 is a fire */
-  zeal: number
   dodgeMax: number
   dodgeRecharge: number
-  lassoCd: number
+  /** Запал and its ceiling (grows with every drop drunk) */
+  fervor: number
+  maxFervor: number
+  /** eagle cooldown 0..1 (0 = ready) */
   eagleCd: number
-  bowDraw: number
-  /** [1] kylys or [2] bow */
+  /** the stance: [1] kylys + kalkan or [2] the bow */
   weapon: 'blade' | 'bow'
-  torchOn: boolean
-  torchDoused: number
+  /** kalkan is taken from the yurt wall with the coal */
+  armed: boolean
+  /** the bow is found by the stream */
+  hasBow: boolean
+  bowDraw: number
+  /** the draw is at its peak: a shot now pierces */
+  bowPeak: boolean
+  /** the next arrow is lit at the vessel */
+  fireNocked: boolean
+  /** the belt vessel: lit at all, clogged with mud (s left), flash cooldown 0..1, heat focus held */
+  vessel: { lit: boolean; clog: number; flashCd: number; focus: boolean }
+  /** «Перевести дух» held: 0..1 */
+  breath: number
   boss: BossHud | null
-  prompt: string | null
+  /** what [E] does here; `key` overrides the key, `hold` 0..1 for a held action */
+  prompt: { text: string; key: string; hold: number | null } | null
   narration: Narration | null
   hint: string | null
   /** the current onboarding step */
@@ -48,7 +61,8 @@ export interface HudState {
   tutorOn: boolean
   /** the title of a place entered for the first time */
   zone: { id: number; name: string; sub: string } | null
-  choice: boolean
+  /** the choice at a drop of living water is open: its number (1..5) */
+  choice: number | null
   grab: number | null
   drunk: number
   given: number
@@ -67,37 +81,43 @@ export interface HudState {
   calm: boolean
   /** open lore page (tamga stone) */
   lore: number | null
-  rpg: RpgSnapshot | null
-  /** rest screen at a spring or fire */
-  rest: 'spring' | 'fire' | null
-  /** inventory (сума) open */
-  suma: boolean
+  kit: KitSnapshot | null
   toasts: { id: number; text: string; kind: 'item' | 'info' | 'warn'; icon?: string }[]
   combat: boolean
   /** what the signs have told so far */
   journal: JournalEntry[]
-  /** the tracker's sense is held */
-  sense: boolean
   /** Susar, once freed: what she is doing and how many unseen enemies she smells */
   companion: { state: string; threats: number } | null
+  /** Azamat at his father's side (chapters 2–3): the kurai's cooldown 0..1 and what he is doing */
+  son: { cd: number; state: string } | null
+  chapter: 1 | 2 | 3
+  /** chapter 3: the choice at the bowl of Yanshishma is open */
+  finalChoice: boolean
+  ending: EndingId | null
+  /** Shulgen's blow from behind: the scar on Aldar's chest flares (0..1) */
+  scar: number
+  /** chapter 3 without the vessel: the blood senses the way */
+  sense: boolean
 }
 
 const initial: HudState = {
   screen: 'title',
   hp: 100,
   maxHp: 100,
-  sips: 3,
-  maxSips: 3,
   dodge: 2,
-  zeal: 0,
   dodgeMax: 2,
   dodgeRecharge: 1,
-  lassoCd: 0,
+  fervor: 40,
+  maxFervor: 100,
   eagleCd: 0,
-  bowDraw: 0,
   weapon: 'blade',
-  torchOn: true,
-  torchDoused: 0,
+  armed: false,
+  hasBow: false,
+  bowDraw: 0,
+  bowPeak: false,
+  fireNocked: false,
+  vessel: { lit: false, clog: 0, flashCd: 0, focus: false },
+  breath: 0,
   boss: null,
   prompt: null,
   narration: null,
@@ -105,7 +125,7 @@ const initial: HudState = {
   tutor: null,
   tutorOn: true,
   zone: null,
-  choice: false,
+  choice: null,
   grab: null,
   drunk: 0,
   given: 0,
@@ -121,14 +141,17 @@ const initial: HudState = {
   cineLine: null,
   calm: false,
   lore: null,
-  rpg: null,
-  rest: null,
-  suma: false,
+  kit: null,
   toasts: [],
   combat: false,
   journal: [],
-  sense: false,
   companion: null,
+  son: null,
+  chapter: 1,
+  finalChoice: false,
+  ending: null,
+  scar: 0,
+  sense: false,
 }
 
 type Listener = () => void
@@ -147,6 +170,13 @@ class Store {
   private listeners = new Set<Listener>()
 
   get = () => this.state
+
+  /** a new chapter starts from a clean HUD; the player's settings stay */
+  reset() {
+    const { volume, quality, visionOn, tutorOn } = this.state
+    this.state = { ...initial, volume, quality, visionOn, tutorOn }
+    this.listeners.forEach((l) => l())
+  }
 
   set(partial: Partial<HudState>) {
     let changed = false

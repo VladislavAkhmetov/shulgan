@@ -1,5 +1,8 @@
 // Keyboard + mouse state with per-frame edge detection.
 
+/** extra physical sources for one virtual code: the pad's X strikes like the left mouse button */
+const ALIAS: Record<string, string[]> = { Mouse0: ['PadX'], ShiftLeft: ['ShiftRight'] }
+
 export class Input {
   private down = new Set<string>()
   private pressedSet = new Set<string>()
@@ -60,22 +63,23 @@ export class Input {
     this.moveY = -dz(gp.axes[1] ?? 0)
     this.aimX = dz(gp.axes[2] ?? 0)
     this.aimY = -dz(gp.axes[3] ?? 0)
+    // docs/ROADMAP.md, «Управление»
     const map: [number, string][] = [
       [0, 'Space'],
-      [1, 'KeyQ'],
-      [2, 'KeyF'],
-      [3, 'KeyE'],
-      [4, 'ShiftLeft'],
-      [12, 'KeyR'],
-      [5, 'KeyT'],
+      [1, 'KeyE'],
+      [2, 'PadX'],
+      [3, 'PadBash'],
+      [4, 'KeyF'],
+      [5, 'KeyR'],
       [6, 'Mouse2'],
       [7, 'Mouse0'],
       [9, 'PadStart'],
       [8, 'PadView'],
-      [14, 'KeyZ'],
-      [15, 'KeyC'],
-      [13, 'PadWeapon'],
       [10, 'KeyV'],
+      [12, 'Tab'],
+      [13, 'KeyQ'],
+      [14, 'Digit1'],
+      [15, 'Digit2'],
     ]
     let any = Math.hypot(this.moveX, this.moveY) > 0 || Math.hypot(this.aimX, this.aimY) > 0
     for (const [i, code] of map) {
@@ -91,13 +95,13 @@ export class Input {
   }
 
   isDown(code: string) {
-    return this.enabled && this.down.has(code)
+    return this.enabled && (this.down.has(code) || ALIAS[code]?.some((a) => this.down.has(a)) === true)
   }
   pressed(code: string) {
-    return this.enabled && this.pressedSet.has(code)
+    return this.enabled && (this.pressedSet.has(code) || ALIAS[code]?.some((a) => this.pressedSet.has(a)) === true)
   }
   released(code: string) {
-    return this.releasedSet.has(code)
+    return this.releasedSet.has(code) || ALIAS[code]?.some((a) => this.releasedSet.has(a)) === true
   }
   endFrame() {
     this.pressedSet.clear()

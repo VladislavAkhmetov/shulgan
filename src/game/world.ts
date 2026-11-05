@@ -9,7 +9,9 @@ import type { Player } from './actors/player'
 import type { Enemy } from './actors/enemies'
 import type { Projectiles } from './actors/projectiles'
 import type { SoundOpts } from './types'
-import type { RpgState } from './rpg/state'
+import type { KitState } from './rpg/state'
+
+export type BossEvent = 'phase2' | 'death' | 'perch' | 'unperch' | 'flare' | 'scar' | 'drink'
 
 /** Services every actor can reach. Implemented by Game. */
 export interface World {
@@ -34,12 +36,22 @@ export interface World {
   onEnemyDeath(e: Enemy): void
   isLit(x: number, z: number): boolean
   perfectDodge(): void
+  /** Aldar sends Kara from his glove (docs/COMPANION.md, «Коготь с неба») */
   releaseEagle(): void
-  rpg: RpgState
+  /** «Вспышка живицы»: a ring of sparks around the belt vessel */
+  vesselFlash(pos: THREE.Vector3): void
+  kit: KitState
   /** short message in the corner (pickups, warnings) */
   toast(text: string, kind?: 'item' | 'info' | 'warn', icon?: string): void
-  /** an arrow stopped flying at pos (fire arrows can light braziers) */
-  arrowLanded(pos: THREE.Vector3, fire: boolean): void
-  bossEvent(ev: 'phase2' | 'death'): void
-  spawnEnemy(kind: 'ubyr' | 'wolf' | 'albasty', x: number, z: number, aggro: boolean): Enemy
+  /** an arrow stopped flying at pos: it stays (wood, ground), breaks (stone) or burns (thorns) */
+  arrowLanded(pos: THREE.Vector3, fire: boolean): 'keep' | 'break' | 'burn'
+  /** every step of an arrow's flight: true = something here took it (a raven's nest, a perched Shurale) */
+  arrowProbe(pos: THREE.Vector3, fire: boolean): boolean
+  /** phase2 · perch/unperch (Shurale in the crowns) · flare (a parry lights the summit) · scar (Shulgen steps behind Aldar) · drink (he heals at the spring) */
+  bossEvent(ev: BossEvent): void
+  /** Shurale's root trap: black roots break out under pos after a moment unless the vessel's flash burns them */
+  spawnRoots(pos: THREE.Vector3): void
+  spawnEnemy(kind: 'ubyr' | 'wolf' | 'morok', x: number, z: number, aggro: boolean): Enemy
+  /** the overlay scene: drawn over the vision mask (memory echoes, spirits) */
+  overlay: THREE.Scene
 }

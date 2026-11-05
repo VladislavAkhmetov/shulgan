@@ -13,18 +13,38 @@ function flashable(rig: { flashMats: THREE.MeshStandardMaterial[] }, color: THRE
   return m
 }
 
-// ======================================================================= HERO: Timer the eagle-hunter
+// ======================================================================= HERO: Aldar the eagle-hunter
 
+/**
+ * Aldar's gear, as separate objects on the joints (docs/EQUIPMENT.md, «Таблица точек крепления»): the HeroAnimator moves each
+ * onto its Mixamo bone. When the GLBs of docs/ASSETS.md arrive, only the contents of these groups change.
+ */
 export interface HeroModel {
   rig: Humanoid
-  lantern: THREE.Object3D
-  lanternFlame: THREE.Object3D
-  lanternGlow: THREE.Mesh
+  /** eq_ember_vessel: the copper coal vessel on the belt, left front */
+  vessel: THREE.Object3D
+  /** where the coal glows: the light follows it */
+  vesselCore: THREE.Object3D
+  /** the tamga slots and the coal: their colour is the heat */
+  vesselGlow: THREE.MeshBasicMaterial
+  /** eq_bow_yaya in the left hand (stance 2) and on the back (stance 1) */
   bowHand: THREE.Object3D
   bowBack: THREE.Object3D
+  /** eq_kalkan on the left forearm (stance 1) and on the back (stance 2) */
+  shield: THREE.Object3D
+  shieldBack: THREE.Object3D
+  /** the boss of the shield: sparks of a parry fly from here */
+  shieldBoss: THREE.Object3D
   bladeTip: THREE.Object3D
-  /** the kylys on the hand: its wrist angle is turned for thrusts */
+  /** eq_kylys in the right hand: its wrist angle is turned for thrusts */
   sword: THREE.Object3D
+  /** the hilt showing out of the scabbard while the bow is out */
+  swordSheathed: THREE.Object3D
+  /** eq_quiver: arrow_01..08, visible = arrows in it */
+  quiverArrows: THREE.Object3D[]
+  /** eq_arrow_hand: on the string while drawing; its head burns once lit at the vessel */
+  arrowHand: THREE.Object3D
+  arrowFlame: THREE.Object3D
   /** pieces that stay when the body is replaced by a GLB */
   props: THREE.Object3D[]
   handL: THREE.Object3D
@@ -117,91 +137,259 @@ export function createHero(vfx: VFX): HeroModel {
   part(new THREE.CylinderGeometry(0.121, 0.13, 0.04, 12), ornMat, J.head, 0, 0.25, 0)
   // beard
   part(new THREE.SphereGeometry(0.08, 8, 6), std(0x150f0b, 1), J.head, 0, 0.04, 0.08).scale.set(1, 0.9, 0.6)
-  // quiver + fletching
-  const quiver = part(capsule(0.06, 0.45), std(0x3a2414, 0.9), J.chest, -0.1, 0.08, -0.18)
-  quiver.rotation.z = 0.5
-  for (let i = 0; i < 4; i++) part(new THREE.ConeGeometry(0.02, 0.1, 4), std(0x8a8070, 0.9), quiver, (i - 1.5) * 0.02, 0.32, 0)
   // bow (back + hand variants). Built in the hand's local YZ plane: limb along Z, belly toward -Y.
+  // eq_bow_yaya: dark horn and birch bark; the string is drawn by code
   const bowMat = std(0x2c1a0e, 0.7)
+  const barkMat = std(0xb8955a, 0.8)
   const bowGeo = new THREE.TubeGeometry(
     new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 0.16, -0.6),
-      new THREE.Vector3(0, -0.02, -0.3),
+      new THREE.Vector3(0, 0.2, -0.6),
+      new THREE.Vector3(0, 0.08, -0.52),
+      new THREE.Vector3(0, -0.04, -0.3),
       new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, -0.02, 0.3),
-      new THREE.Vector3(0, 0.16, 0.6),
+      new THREE.Vector3(0, -0.04, 0.3),
+      new THREE.Vector3(0, 0.08, 0.52),
+      new THREE.Vector3(0, 0.2, 0.6),
     ]),
-    18,
+    22,
     0.016,
     5,
   )
-  const stringGeo = new THREE.CylinderGeometry(0.003, 0.003, 1.2, 3).rotateX(Math.PI / 2).translate(0, 0.16, 0)
+  const stringGeo = new THREE.CylinderGeometry(0.003, 0.003, 1.2, 3).rotateX(Math.PI / 2).translate(0, 0.2, 0)
   const stringMat = std(0xb8ad90, 0.8)
   const makeBow = () => {
     const g = new THREE.Group()
     g.add(new THREE.Mesh(bowGeo, bowMat), new THREE.Mesh(stringGeo, stringMat))
+    part(new THREE.CylinderGeometry(0.022, 0.022, 0.14, 6).rotateX(Math.PI / 2), barkMat, g, 0, 0, 0)
     return g
   }
   const bowBack = makeBow()
-  bowBack.position.set(0.02, 0.08, -0.2)
+  bowBack.name = 'eq_bow_yaya_back'
+  bowBack.position.set(0.02, 0.08, -0.22)
   bowBack.rotation.set(Math.PI / 2, 0, 0.55)
   J.chest.add(bowBack)
   const bowHand = makeBow()
+  bowHand.name = 'eq_bow_yaya'
   bowHand.position.set(0, -0.07, 0)
   bowHand.visible = false
   J.haL.add(bowHand)
-  // short curved kylys: the grandfather's sabre, reforged shorter after it broke
+
+  // eq_kalkan: a convex round shield, 55 cm, bull leather over wood, a bronze boss with claw scratches, an iron rim
+  const leather = std(0x4a2e1a, 0.85)
+  const bronze = std(0x8a6a3a, 0.45, { metalness: 0.7 })
+  const makeShield = () => {
+    const g = new THREE.Group()
+    const dish = new THREE.Mesh(new THREE.SphereGeometry(0.45, 20, 6, 0, Math.PI * 2, 0, 0.66), leather)
+    dish.position.y = -0.34
+    g.add(dish)
+    const boss = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), bronze)
+    boss.position.y = 0.105
+    g.add(boss)
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4
+      part(new THREE.SphereGeometry(0.022, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2), bronze, g, Math.cos(a) * 0.17, 0.075, Math.sin(a) * 0.17)
+    }
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.272, 0.012, 4, 28), iron)
+    rim.rotation.x = Math.PI / 2
+    rim.position.y = 0.0
+    g.add(rim)
+    // the kuskar (ram's horn) pattern pressed into the leather
+    const orn2 = std(0xffffff, 0.9, { map: orn(), transparent: true, opacity: 0.35, depthWrite: false })
+    const band = new THREE.Mesh(new THREE.RingGeometry(0.19, 0.25, 24).rotateX(-Math.PI / 2), orn2)
+    band.position.y = 0.06
+    g.add(band)
+    g.traverse((o) => (o.castShadow = true))
+    return { g, boss }
+  }
+  const sh = makeShield()
+  const shield = new THREE.Group()
+  shield.name = 'eq_kalkan'
+  // strapped to the outside of the forearm so the hand stays free: the face looks out to the left
+  sh.g.rotation.z = -Math.PI / 2
+  shield.add(sh.g)
+  shield.position.set(0.09, -0.16, 0.0)
+  shield.visible = false
+  J.elL.add(shield)
+  const shieldBack = new THREE.Group()
+  shieldBack.name = 'eq_kalkan_back'
+  const sb = makeShield().g
+  sb.rotation.x = -Math.PI / 2
+  shieldBack.add(sb)
+  shieldBack.position.set(0, 0.16, -0.24)
+  shieldBack.visible = false
+  J.chest.add(shieldBack)
+
+  // short curved kylys: the father's sabre
   const sword = new THREE.Group()
+  sword.name = 'eq_kylys'
   const L = WEAPONS.kylys.edge
   const bladeShape = new THREE.Shape()
   const curve = (y: number) => 0.055 * (y / L) ** 2 // the blade sweeps back toward the tip
   bladeShape.moveTo(-0.013, 0)
   for (let i = 1; i <= 8; i++) bladeShape.lineTo(-0.013 + curve((i / 8) * L), -(i / 8) * L) // spine
   bladeShape.lineTo(0.002 + curve(L * 1.05), -L * 1.05) // point
-  for (let i = 8; i >= 0; i--) bladeShape.lineTo(0.021 - 0.006 * (i / 8) + curve((i / 8) * L), -(i / 8) * L) // edge
+  // the yelman: the last third widens toward the point
+  for (let i = 8; i >= 0; i--) bladeShape.lineTo(0.021 - 0.006 * (i / 8) + (i > 5 ? 0.006 * ((i - 5) / 3) : 0) + curve((i / 8) * L), -(i / 8) * L) // edge
   bladeShape.closePath()
   const bladeGeo = new THREE.ExtrudeGeometry(bladeShape, { depth: 0.008, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 1 })
   bladeGeo.translate(0, -0.075, -0.004)
-  const steel = std(0xb9c1c8, 0.32, { metalness: 0.85 })
+  const steel = std(0x8d959c, 0.36, { metalness: 0.85 })
   const blade = new THREE.Mesh(bladeGeo, steel)
   blade.castShadow = true
   // the flat of the blade faces the sky in horizontal cuts and thrusts, so the top-down camera reads it
   blade.rotation.y = Math.PI / 2
   sword.add(blade)
-  part(new THREE.BoxGeometry(0.1, 0.018, 0.03), std(0x8a6a3a, 0.5, { metalness: 0.6 }), sword, 0.004, -0.068, 0)
-  part(new THREE.CylinderGeometry(0.017, 0.019, 0.13, 6), std(0x2e1d12, 0.85), sword, 0, -0.0, 0)
-  for (let i = 0; i < 4; i++) part(new THREE.TorusGeometry(0.019, 0.004, 3, 8), std(0x6b4a2a, 0.9), sword, 0, 0.045 - i * 0.03, 0).rotation.x = Math.PI / 2
-  part(new THREE.SphereGeometry(0.024, 6, 5), std(0x8a6a3a, 0.5, { metalness: 0.6 }), sword, 0, 0.075, 0)
+  const horn = std(0x15100c, 0.6)
+  const hilt = (parent: THREE.Object3D) => {
+    part(new THREE.BoxGeometry(0.1, 0.018, 0.03), bronze, parent, 0.004, -0.068, 0)
+    part(new THREE.CylinderGeometry(0.017, 0.019, 0.13, 6), horn, parent, 0, -0.0, 0)
+    part(new THREE.SphereGeometry(0.024, 6, 5), horn, parent, 0.012, 0.075, 0)
+  }
+  hilt(sword)
   const bladeTip = new THREE.Object3D()
   bladeTip.position.set(0, -0.075 - L, -curve(L))
   sword.add(bladeTip)
   sword.rotation.x = -1.25
   sword.position.y = -0.03
   J.haR.add(sword)
-  // lasso coil at right hip
-  const coil = part(new THREE.TorusGeometry(0.11, 0.018, 5, 14), std(0x6b5638, 0.9), J.hips, -0.22, -0.08, 0.02)
-  coil.rotation.y = Math.PI / 2
-  // lantern at left hip
-  const lantern = new THREE.Group()
-  lantern.position.set(0.25, -0.1, 0.07)
-  J.hips.add(lantern)
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2
-    part(new THREE.CylinderGeometry(0.008, 0.008, 0.18, 4), iron, lantern, Math.cos(a) * 0.06, -0.12, Math.sin(a) * 0.06)
-  }
-  part(new THREE.CylinderGeometry(0.075, 0.07, 0.025, 8), iron, lantern, 0, -0.03, 0)
-  part(new THREE.CylinderGeometry(0.07, 0.075, 0.025, 8), iron, lantern, 0, -0.21, 0)
-  const lanternGlow = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), glow(3, 1.6, 0.6))
-  lanternGlow.position.y = -0.14
-  lantern.add(lanternGlow)
-  const lanternFlame = makeFlame(0.11)
-  lanternFlame.position.y = -0.19
-  lantern.add(lanternFlame)
-  vfx.billboards.add(lanternFlame)
-  // the lantern hangs from the belt and swings — its light and shadows swing with it
-  rig.addDangle(lantern, { k: 22, c: 2.6, amt: 0.07, grav: 1, limit: 1.0 })
+  // the scabbard on the left hip, and the hilt in it while the bow is out
+  const scabbard = new THREE.Group()
+  scabbard.name = 'eq_kylys_sheath'
+  part(new THREE.BoxGeometry(0.05, 0.66, 0.022), std(0x2a1a10, 0.9), scabbard, 0, -0.33, 0)
+  part(new THREE.BoxGeometry(0.056, 0.05, 0.028), bronze, scabbard, 0, -0.64, 0)
+  const swordSheathed = new THREE.Group()
+  hilt(swordSheathed)
+  swordSheathed.position.y = 0.07
+  swordSheathed.rotation.z = Math.PI
+  swordSheathed.visible = false
+  scabbard.add(swordSheathed)
+  scabbard.position.set(0.2, -0.02, -0.08)
+  scabbard.rotation.set(0.5, 0, 0.25)
+  J.hips.add(scabbard)
 
-  return { rig, lantern, lanternFlame, lanternGlow, bowHand, bowBack, bladeTip, sword, props: [sword, bowBack, bowHand, lantern, coil], handL: J.haL }
+  // eq_quiver at the right hip: hourglass leather with bronze plates and Aisylu's blue tassel; 8 arrow meshes
+  const quiver = new THREE.Group()
+  quiver.name = 'eq_quiver'
+  part(new THREE.CylinderGeometry(0.065, 0.05, 0.22, 8), std(0x3a2414, 0.9), quiver, 0, 0.11, 0)
+  part(new THREE.CylinderGeometry(0.05, 0.065, 0.22, 8), std(0x3a2414, 0.9), quiver, 0, -0.11, 0)
+  part(new THREE.TorusGeometry(0.052, 0.008, 4, 10), bronze, quiver, 0, 0, 0).rotation.x = Math.PI / 2
+  part(new THREE.ConeGeometry(0.025, 0.1, 5), std(0x2c5cb0, 0.8, { emissive: 0x0a1a3a }), quiver, 0.06, -0.05, 0.03).rotation.x = Math.PI
+  const shaftMat = std(0x6b5236, 0.8)
+  const fletchMat = std(0x8a8070, 0.9)
+  const quiverArrows: THREE.Object3D[] = []
+  for (let i = 0; i < 8; i++) {
+    const a = new THREE.Group()
+    a.name = `arrow_0${i + 1}`
+    part(new THREE.CylinderGeometry(0.005, 0.005, 0.2, 4), shaftMat, a, 0, 0.1, 0)
+    part(new THREE.ConeGeometry(0.016, 0.07, 3), fletchMat, a, 0, 0.21, 0)
+    const ang = (i / 8) * Math.PI * 2
+    a.position.set(Math.cos(ang) * 0.028, 0.2, Math.sin(ang) * 0.028)
+    a.rotation.set(Math.sin(ang) * 0.12, 0, -Math.cos(ang) * 0.12)
+    a.visible = false
+    quiver.add(a)
+    quiverArrows.push(a)
+  }
+  quiver.position.set(-0.22, -0.02, -0.04)
+  quiver.rotation.set(-0.35, 0, -0.3)
+  J.hips.add(quiver)
+
+  // eq_arrow_hand: on the string between the fingers of the right hand, only while drawing
+  const arrowHand = new THREE.Group()
+  arrowHand.name = 'eq_arrow_hand'
+  part(new THREE.CylinderGeometry(0.005, 0.005, 0.8, 4).rotateX(Math.PI / 2), shaftMat, arrowHand, 0, 0, 0.35)
+  part(new THREE.ConeGeometry(0.014, 0.06, 4).rotateX(Math.PI / 2), iron, arrowHand, 0, 0, 0.77)
+  const arrowFlame = makeFlame(0.12)
+  arrowFlame.position.set(0, 0.02, 0.79)
+  arrowFlame.visible = false
+  arrowHand.add(arrowFlame)
+  vfx.billboards.add(arrowFlame)
+  arrowHand.position.set(0, -0.06, 0.02)
+  arrowHand.visible = false
+  J.haR.add(arrowHand)
+
+  // eq_ember_vessel «Ут-һауыт»: octagonal hammered copper, a domed lid on a latch, a ring for the belt chain,
+  // tamga slots in the walls; the coal on a bed of birch tinder glows through them (docs/ASSETS.md 1.1)
+  const vessel = new THREE.Group()
+  vessel.name = 'eq_ember_vessel'
+  vessel.position.set(0.2, -0.1, 0.12)
+  J.hips.add(vessel)
+  const copper = std(0x7a4a2a, 0.45, { metalness: 0.85 })
+  const patina = std(0x4c5a4a, 0.6, { metalness: 0.5 })
+  part(new THREE.CylinderGeometry(0.075, 0.068, 0.11, 8), copper, vessel, 0, -0.13, 0)
+  part(new THREE.SphereGeometry(0.075, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), copper, vessel, 0, -0.075, 0)
+  part(new THREE.CylinderGeometry(0.068, 0.04, 0.03, 8), patina, vessel, 0, -0.2, 0)
+  part(new THREE.TorusGeometry(0.022, 0.006, 4, 10), copper, vessel, 0, 0.005, 0)
+  for (let i = 0; i < 3; i++) part(new THREE.TorusGeometry(0.009, 0.0025, 3, 6), copper, vessel, 0, 0.03 + i * 0.016, 0).rotation.y = i % 2 ? Math.PI / 2 : 0
+  const vesselGlow = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 1.4, 0.4) })
+  // slots: stepped rhombs and bars cut through the copper, glowing with the coal
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8
+    const slot = new THREE.Mesh(new THREE.PlaneGeometry(i % 2 ? 0.012 : 0.022, i % 2 ? 0.07 : 0.03), vesselGlow)
+    slot.position.set(Math.cos(a) * 0.0725, -0.13 + (i % 2 ? 0 : (i % 4 === 0 ? 0.02 : -0.02)), Math.sin(a) * 0.0725)
+    slot.rotation.y = -a + Math.PI / 2
+    if (i % 2 === 0) slot.rotation.z = Math.PI / 4
+    vessel.add(slot)
+  }
+  const vesselCore = new THREE.Object3D()
+  vesselCore.position.y = -0.13
+  vessel.add(vesselCore)
+  // it hangs on a short chain from the belt and swings — its light and shadows swing with it
+  rig.addDangle(vessel, { k: 26, c: 3, amt: 0.05, grav: 1, limit: 0.8 })
+
+  return {
+    rig,
+    vessel,
+    vesselCore,
+    vesselGlow,
+    bowHand,
+    bowBack,
+    shield,
+    shieldBack,
+    shieldBoss: sh.boss,
+    bladeTip,
+    sword,
+    swordSheathed,
+    quiverArrows,
+    arrowHand,
+    arrowFlame,
+    props: [sword, bowBack, bowHand, shield, shieldBack, scabbard, quiver, arrowHand, vessel],
+    handL: J.haL,
+  }
+}
+
+/** Azamat, eleven: a belted fur coat with an embroidered hem, a fox malakhai, the reed kurai (docs/ASSETS.md, chr_azamat). */
+export function createAzamat() {
+  const mats = { skin: std(0x8a5e44, 0.7), cloth: std(0x5a3a22, 0.9), dark: std(0x1a120c, 0.9) }
+  const rig = new Humanoid({
+    hipH: 0.66,
+    thigh: 0.32,
+    shin: 0.32,
+    torso: 0.44,
+    upperArm: 0.22,
+    foreArm: 0.21,
+    shoulderW: 0.32,
+    hipW: 0.18,
+    limbR: 0.05,
+    headR: 0.115,
+    skin: mats.skin,
+    cloth: mats.cloth,
+    dark: mats.dark,
+    stride: 1.2,
+    runSpeed: 4.2,
+  })
+  rig.flashMats.push(mats.skin, mats.cloth, mats.dark)
+  const J = rig.joints
+  const fox = std(0xa0582a, 1)
+  part(new THREE.CylinderGeometry(0.16, 0.24, 0.32, 8, 1, true).translate(0, -0.16, 0), mats.cloth, J.hips, 0, 0, 0)
+  part(new THREE.CylinderGeometry(0.242, 0.25, 0.05, 8, 1, true).translate(0, -0.3, 0), std(0xffffff, 0.8, { map: orn() }), J.hips, 0, 0, 0)
+  part(new THREE.SphereGeometry(0.14, 10, 8, 0, Math.PI * 2, 0, Math.PI / 1.8), fox, J.head, 0, 0.13, -0.01).scale.set(1, 0.9, 1.05)
+  part(new THREE.BoxGeometry(0.06, 0.14, 0.03), fox, J.head, 0.11, 0.06, -0.02)
+  part(new THREE.BoxGeometry(0.06, 0.14, 0.03), fox, J.head, -0.11, 0.06, -0.02)
+  part(new THREE.BoxGeometry(0.05, 0.06, 0.012), std(0x6a4a2a, 0.8), J.chest, 0, 0.14, 0.12)
+  const kurai = part(new THREE.CylinderGeometry(0.009, 0.011, 0.34, 6), std(0xc9b48a, 0.7), J.haR, 0, -0.08, 0.04)
+  kurai.rotation.x = 0.5
+  rig.root.traverse((o) => (o.castShadow = true))
+  return rig
 }
 
 export const HERO_CLIPS: Record<string, Clip> = {
@@ -454,12 +642,12 @@ export const WOLF_CLIPS: Record<string, Clip> = {
 
 // ======================================================================= ALBASTY
 
-export interface AlbastyModel {
+export interface MorokModel {
   rig: Humanoid
   handGlow: THREE.MeshBasicMaterial
 }
 
-export function createAlbasty(): AlbastyModel {
+export function createMorok(): MorokModel {
   const ref = { flashMats: [] as THREE.MeshStandardMaterial[] }
   const skin = flashable(ref, 0x9a9a92, 0.6)
   const dress = flashable(ref, 0x5d5b55, 0.95, { side: THREE.DoubleSide })
@@ -504,7 +692,7 @@ export function createAlbasty(): AlbastyModel {
   return { rig, handGlow }
 }
 
-export const ALBASTY_CLIPS: Record<string, Clip> = {
+export const MOROK_CLIPS: Record<string, Clip> = {
   cast: [
     { t: 0, p: { shL: [-1.2, 0, 0.6], shR: [-1.2, 0, -0.6], elL: [-1.0, 0, 0], elR: [-1.0, 0, 0] } },
     { t: 0.2, p: { shL: [-2.3, 0, 0.7], shR: [-2.3, 0, -0.7], elL: [-0.6, 0, 0], elR: [-0.6, 0, 0], chest: [-0.35, 0, 0], head: [-0.4, 0, 0] }, b: [0.1, 0, -0.05] },

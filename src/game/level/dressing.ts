@@ -407,7 +407,7 @@ export function addStoryProp(ctx: DressCtx, m: Marker): Circle[] {
   const circles: Circle[] = []
   switch (m.ch) {
     case 'h': {
-      // a hunter of Timer's clan, fallen with his lantern out
+      // a hunter of Aldar's clan, fallen with his lantern out
       g.rotation.y = rng() * Math.PI * 2
       skull(g, 1, false).position.set(0, 0.1, 0.75)
       for (let i = 0; i < 6; i++) {
@@ -475,6 +475,13 @@ export function addStoryProp(ctx: DressCtx, m: Marker): Circle[] {
       st.scale.set(1, 0.45, 1)
       st.position.set(1.1, 0.12, 0.4)
       skull(g, 1.6, true).position.set(1.1, 0.36, 0.4)
+      // old horse skulls hung high in the branches (docs/ASSETS.md 2.2)
+      for (const [x, y, z] of [[0.9, 4.6, 0.3], [-0.6, 5.4, -0.4]] as const) {
+        mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.5, 3), wood, g).position.set(x, y + 0.35, z)
+        const sk = skull(g, 1.4, true)
+        sk.position.set(x, y, z)
+        sk.rotation.set(-1.2, 0.4, 0)
+      }
       circles.push({ x: m.x, z: m.z, r: 0.45, occludes: true }, { x: m.x + 1.1, z: m.z + 0.4, r: 0.4, occludes: false })
       triggers.push({ id: 's', pos: g.position.clone(), fired: false })
       break

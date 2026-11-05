@@ -4,9 +4,10 @@ React + Vite + Tailwind CSS project running inside Figma Make.
 
 ## Game Project Docs
 
-This repository is an isometric action RPG ("Тело Урала", Bashkir epic setting) built on three.js.
-Before game design, lore, art, or engine work, read the relevant file in `docs/` (GDD, LORE, ART, TECH, ROADMAP)
-and record new decisions there.
+This repository is an isometric dark action RPG ("Аманат", Bashkir epic «Урал-батыр» setting) built on three.js.
+Before game design, lore, art, or engine work, read the relevant file in `docs/` (README is the index:
+STORY, LEVELS, COMBAT, COMPANION, DIALOGUES, EQUIPMENT, ASSETS; engine notes in TECH, implementation plan and
+decisions in ROADMAP) and record new decisions there.
 
 ## Development Server
 

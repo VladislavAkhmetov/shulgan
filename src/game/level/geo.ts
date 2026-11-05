@@ -85,6 +85,13 @@ interface BatchType {
   chunks: Map<number, THREE.Matrix4[]>
 }
 
+const TREE_TYPES = /^(spruce|pine|birch|dead)/
+const TRUNK_CELL = 12
+const TRUNK_SHADOW = 'trunkShadow'
+// a tapered six-sided trunk, 4.5 m at scale 1: only drawn into the vessel's cube shadow
+const trunkGeo = new THREE.CylinderGeometry(0.11, 0.26, 4.5, 6, 1).translate(0, 2.25, 0)
+const trunkMat = new THREE.MeshBasicMaterial()
+
 export class Batcher {
   private types = new Map<string, BatchType>()
   private m = new THREE.Matrix4()
@@ -111,6 +118,31 @@ export class Batcher {
 
   build(parent: THREE.Object3D) {
     let meshes = 0
+    // the vessel's light hangs at hip height: of a tree only the trunk throws a shadow it can show (the crown's goes up and
+    // out of frame). Its cube shadow gets cheap trunk stand-ins in small cells, so each of the six faces draws only what is near.
+    const trunks = new Map<number, THREE.Matrix4[]>()
+    for (const [key, t] of this.types) {
+      if (!TREE_TYPES.test(key) || !t.cast) continue
+      for (const arr of t.chunks.values())
+        for (const m of arr) {
+          const ck = Math.floor(m.elements[12] / TRUNK_CELL) + Math.floor(m.elements[14] / TRUNK_CELL) * 1000
+          let list = trunks.get(ck)
+          if (!list) trunks.set(ck, (list = []))
+          list.push(m)
+        }
+    }
+    for (const arr of trunks.values()) {
+      const im = new THREE.InstancedMesh(trunkGeo, trunkMat, arr.length)
+      im.name = TRUNK_SHADOW
+      arr.forEach((m, i) => im.setMatrixAt(i, m))
+      im.instanceMatrix.needsUpdate = true
+      im.castShadow = true
+      im.receiveShadow = false
+      im.layers.set(LAYER_LANTERN_SHADOW)
+      im.computeBoundingSphere()
+      parent.add(im)
+      meshes++
+    }
     for (const [key, t] of this.types) {
       for (const arr of t.chunks.values()) {
         const im = new THREE.InstancedMesh(t.geo, t.mat, arr.length)
@@ -155,8 +187,9 @@ export function trimShadows(root: THREE.Object3D, minRadius = 0.14) {
 /** Shadow layers: the lantern's cube shadow and the moon only render objects on these layers. */
 export const LAYER_LANTERN_SHADOW = 4
 export const LAYER_MOON_SHADOW = 5
-const BIG_CASTERS = /^(spruce|pine|birch|dead|boulder)/
-const MOON_ONLY = /^(bush|log)/
+/** low, solid things: both the vessel and the moon cast them (trees reach the vessel's shadow as trunk stand-ins) */
+const BIG_CASTERS = /^boulder/
+const MOON_ONLY = /^(bush|log|spruce|pine|birch|dead)/
 
 /** Opt shadow casters into the right light passes; small or flat things cast nothing. */
 export function assignShadowLayers(root: THREE.Object3D) {
@@ -164,6 +197,7 @@ export function assignShadowLayers(root: THREE.Object3D) {
     const m = o as THREE.Mesh
     if (!m.isMesh || !m.castShadow) return
     if ((m as unknown as THREE.InstancedMesh).isInstancedMesh) {
+      if (m.name === TRUNK_SHADOW) return
       if (BIG_CASTERS.test(m.name)) {
         m.layers.enable(LAYER_LANTERN_SHADOW)
         m.layers.enable(LAYER_MOON_SHADOW)

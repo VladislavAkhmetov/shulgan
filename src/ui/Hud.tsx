@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Game } from '../game/Game'
-import type { ItemId } from '../game/rpg/data'
 import type { TutorView } from '../game/tutor'
 import { Glyph, type GlyphId } from './glyphs'
 import { Key, Rich } from './kit'
@@ -41,10 +40,10 @@ function Skill({ id, k, cd = 0, charge, count, active = false, dim = false, warn
   )
 }
 
-/** One onboarding step: keys, what it does, why; it stays until Timer does it. */
+/** One onboarding step: keys, what it does, why; it stays until Aldar does it. */
 function Lesson({ t }: { t: TutorView }) {
   return (
-    <div key={t.key} className={`anim-fade-up text-shade transition-opacity duration-500 ${t.done ? 'opacity-70' : ''}`}>
+    <div key={`lesson-${t.key}`} className={`anim-fade-up text-shade transition-opacity duration-500 ${t.done ? 'opacity-70' : ''}`}>
       <div className="font-ui text-[13px] text-amber/80">
         {t.lesson}
         {t.of > 1 && <span className="text-bone/45"> · {t.index} из {t.of}</span>}
@@ -68,48 +67,34 @@ function Lesson({ t }: { t: TutorView }) {
   )
 }
 
-function useFlash(value: number | undefined, ms = 3200) {
-  const prev = useRef(value)
-  const [delta, setDelta] = useState<{ n: number; id: number } | null>(null)
-  useEffect(() => {
-    if (value === undefined) return
-    if (prev.current !== undefined && value > prev.current) {
-      const d = value - prev.current
-      setDelta((o) => ({ n: (o?.n ?? 0) + d, id: Date.now() }))
-    }
-    prev.current = value
-  }, [value])
-  useEffect(() => {
-    if (!delta) return
-    const t = window.setTimeout(() => setDelta(null), ms)
-    return () => window.clearTimeout(t)
-  }, [delta, ms])
-  return delta
+/** the quiver: a tick for every place, lit for every arrow in it */
+function Quiver({ n, max }: { n: number; max: number }) {
+  return (
+    <div className="flex h-3 items-end gap-[3px]">
+      {Array.from({ length: max }, (_, i) => (
+        <div key={i} className={`w-[3px] transition-[height,background-color] duration-200 ${i < n ? 'h-3 bg-bone/90' : 'h-1.5 bg-bone/20'}`} />
+      ))}
+    </div>
+  )
 }
 
 export function Hud({ game }: { game: Game }) {
   void game
   const s = useHud()
-  const r = s.rpg
-  const skazFlash = useFlash(r?.skaz)
   if (s.screen !== 'playing' && s.screen !== 'paused' && s.screen !== 'dead') return null
-  const menu = !!s.rest || !!s.suma || s.lore !== null || !!s.choice || s.screen === 'paused' || s.screen === 'dead'
+  const menu = s.lore !== null || s.choice !== null || s.screen === 'paused' || s.screen === 'dead'
   const playing = s.screen === 'playing' && !menu
   const lowHp = s.hp / s.maxHp < 0.3
   const cine = s.cinema
   // outside danger the interface dissolves; vitals linger faintly
   const skillsOpacity = cine || menu ? 0 : s.calm ? 0 : 1
   const vitalsOpacity = cine || menu ? 0 : s.calm ? 0.25 : 1
-  const count = (id: ItemId) => r?.items.find(([i]) => i === id)?.[1] ?? 0
-  const fireArrows = r?.arrowType === 'arrow_fire' && count('arrow_fire') > 0
-  const arrows = fireArrows ? count('arrow_fire') : count('arrow')
-  const honey = count('honey')
-  const kumys = count('kumys')
-  const oil = r?.oil ?? 1
-  const torchLit = s.torchOn && s.torchDoused <= 0
+  const k = s.kit
+  const arrows = k?.arrows ?? 0
+  const maxArrows = k?.maxArrows ?? 5
   const hpWidth = Math.max(220, Math.min(440, s.maxHp * 2.4))
-  const span = r ? Math.max(1, r.levelTo - r.levelFrom) : 1
-  const skazK = r ? Math.max(0, Math.min(1, (r.skaz - r.levelFrom) / span)) : 0
+  const fervorWidth = Math.max(160, Math.min(hpWidth, s.maxFervor * 2.2))
+  const v = s.vessel
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
@@ -117,7 +102,7 @@ export function Hud({ game }: { game: Game }) {
       <div className="absolute inset-x-0 top-0 z-10 h-[11vh] bg-black transition-transform duration-[1200ms] ease-[cubic-bezier(0.6,0,0.2,1)]" style={{ transform: cine ? 'none' : 'translateY(-100%)' }} />
       <div className="absolute inset-x-0 bottom-0 z-10 h-[11vh] bg-black transition-transform duration-[1200ms] ease-[cubic-bezier(0.6,0,0.2,1)]" style={{ transform: cine ? 'none' : 'translateY(100%)' }} />
       {cine && s.cineLine && (
-        <div key={s.cineLine.id} className="absolute inset-x-0 bottom-[13vh] z-20 mx-auto max-w-[900px] px-8 text-center">
+        <div key={`cine-${s.cineLine.id}`} className="absolute inset-x-0 bottom-[13vh] z-20 mx-auto max-w-[900px] px-8 text-center">
           <div className="mb-1.5 font-ui text-[13px] font-medium text-amber/80" style={{ animation: 'fade-in 1s ease both' }}>
             {s.cineLine.speaker}
           </div>
@@ -133,7 +118,7 @@ export function Hud({ game }: { game: Game }) {
 
       {/* a place entered for the first time: its name, carved, and the sesen's half-line */}
       {s.zone && !cine && !menu && (
-        <div key={s.zone.id} className="absolute inset-x-0 top-[9vh] flex flex-col items-center text-center text-shade" style={{ animation: 'zone-card 4.8s ease both' }}>
+        <div key={`zone-${s.zone.id}`} className="absolute inset-x-0 top-[9vh] flex flex-col items-center text-center text-shade" style={{ animation: 'zone-card 4.8s ease both' }}>
           <div className="h-px w-40 bg-gradient-to-r from-transparent via-amber/60 to-transparent" />
           <div className="mt-3 font-display text-[44px] leading-none tracking-[0.04em] text-bone">{s.zone.name}</div>
           <div className="mt-2 font-tale text-[18px] italic text-bone/60">{s.zone.sub}</div>
@@ -158,7 +143,7 @@ export function Hud({ game }: { game: Game }) {
 
       {/* the sesen speaks in the lower third */}
       {s.narration && !cine && !menu && s.screen !== 'dead' && (
-        <div key={s.narration.id} className={`anim-fade-up absolute left-1/2 w-[min(760px,70vw)] -translate-x-1/2 text-center ${s.boss ? 'bottom-[136px]' : 'bottom-[120px]'}`}>
+        <div key={`narr-${s.narration.id}`} className={`anim-fade-up absolute left-1/2 w-[min(760px,70vw)] -translate-x-1/2 text-center ${s.boss ? 'bottom-[136px]' : 'bottom-[120px]'}`}>
           <div className="font-ui text-[13px] font-medium text-amber/80 text-shade">{s.narration.speaker}</div>
           <div className="mt-0.5 font-tale text-[23px] italic leading-snug text-bone text-shade">{s.narration.text}</div>
         </div>
@@ -169,19 +154,28 @@ export function Hud({ game }: { game: Game }) {
         <div className="absolute left-8 top-8 flex max-w-[460px] flex-col gap-4">
           {s.tutor && <Lesson t={s.tutor} />}
           {s.hint && (
-            <div key={s.hint} className="anim-fade-up border-l-2 border-amber/60 pl-3 font-ui text-[15px] leading-relaxed text-bone/85 text-shade">
+            <div key={`hint-${s.hint}`} className="anim-fade-up border-l-2 border-amber/60 pl-3 font-ui text-[15px] leading-relaxed text-bone/85 text-shade">
               <Rich text={s.hint} />
             </div>
           )}
         </div>
       )}
 
-      {/* what can be done right here — under Timer */}
+      {/* what can be done right here — under Aldar */}
       {s.prompt && playing && !cine && (
-        <div key={s.prompt} className="anim-quick absolute left-1/2 top-[61%] flex -translate-x-1/2 items-center gap-2.5 whitespace-nowrap font-ui text-[16px] text-bone text-shade">
-          <Key k="F" className="text-[14px]" />
+        <div key={`prompt-${s.prompt.text}`} className="anim-quick absolute left-1/2 top-[61%] flex -translate-x-1/2 items-center gap-2.5 whitespace-nowrap font-ui text-[16px] text-bone text-shade">
+          {s.prompt.key && (
+            <span className="relative grid place-items-center">
+              <Key k={s.prompt.key} className="text-[14px]" />
+              {s.prompt.hold !== null && (
+                <svg className="pointer-events-none absolute -inset-2 -rotate-90" viewBox="0 0 40 40" aria-hidden>
+                  <circle cx="20" cy="20" r="17" fill="none" stroke="rgba(232,155,60,0.9)" strokeWidth="2" strokeDasharray={107} strokeDashoffset={107 * (1 - s.prompt.hold)} />
+                </svg>
+              )}
+            </span>
+          )}
           <span>
-            <Rich text={s.prompt} />
+            <Rich text={s.prompt.hold !== null ? `${s.prompt.text} — держать` : s.prompt.text} />
           </span>
         </div>
       )}
@@ -213,35 +207,40 @@ export function Hud({ game }: { game: Game }) {
       {/* bottom-left: vitals */}
       <div className="absolute bottom-8 left-8 transition-opacity duration-[1500ms]" style={{ opacity: vitalsOpacity }}>
         <div className="mb-2 flex h-5 items-center gap-2">
-          {r && r.ready > 0 && (
-            <span className="anim-fade-in flex items-center gap-1.5 font-ui text-[13px] text-amber text-shade">
-              <Glyph id="dombra" size={18} /> Кубаир готов
+          {s.son && (
+            <span className={`flex items-center gap-1.5 font-ui text-[13px] text-shade ${s.son.state === 'follow' && s.son.cd === 0 ? 'text-[#7fe0d8]' : 'text-bone/60'}`}>
+              <Glyph id="kurai" size={18} />
+              Азамат
+              {s.son.state === 'kneel' ? ' · на коленях' : s.son.state === 'stagger' ? ' · еле идёт' : s.son.state === 'stay' ? ' · у огня' : s.son.cd > 0 ? '' : ' · курай готов'}
             </span>
           )}
           {s.companion && (
             <span className={`flex items-center gap-1.5 font-ui text-[13px] text-shade transition-colors ${s.companion.threats > 0 ? 'text-amber' : 'text-bone/60'}`}>
               <Glyph id="marten" size={20} />
-              Сусар{s.companion.threats > 0 ? ` · чует: ${s.companion.threats}` : s.companion.state === 'hide' ? ' · спряталась' : s.companion.state === 'sniff' ? ' · нашла знак' : ''}
+              Сусар
+              {s.companion.state === 'leap' ? ' · срывает покров' : s.companion.state === 'point' ? ' · указывает на дерево' : s.companion.threats > 0 ? ` · чует: ${s.companion.threats}` : s.companion.state === 'sniff' ? ' · нашла знак' : ''}
             </span>
           )}
-          {skazFlash && (
-            <span key={skazFlash.id} className="anim-fade-up font-ui text-[13px] text-bone/70 text-shade">
-              Сказ +{skazFlash.n}
+          {s.breath > 0 && (
+            <span className="anim-fade-in flex items-center gap-1.5 font-ui text-[13px] text-amber text-shade">
+              <Glyph id="breath" size={18} /> Перевести дух
+              <span className="ml-1 h-[2px] w-16 bg-bone/15">
+                <span className="block h-full bg-amber" style={{ width: `${s.breath * 100}%` }} />
+              </span>
             </span>
           )}
         </div>
         <div className="h-[6px] transition-[width] duration-700" style={{ width: hpWidth }}>
           <Bar value={s.hp} max={s.maxHp} fill={lowHp ? 'bg-[#c4552a]' : 'bg-[#e4dac7]'} />
         </div>
-        <div className="mt-[3px] h-[2px] transition-opacity duration-500" style={{ width: hpWidth, opacity: skazFlash || (r && r.ready > 0) ? 1 : 0 }}>
-          <div className="h-full bg-amber/80 transition-[width] duration-700" style={{ width: `${(r && r.ready > 0 ? 1 : skazK) * 100}%` }} />
+        {/* Запал: what the shield and the fire arrow spend; notches at 35 (a fire arrow) and 50 (a breath) */}
+        <div className="relative mt-[4px] h-[3px] transition-[width] duration-700" style={{ width: fervorWidth }}>
+          <Bar value={s.fervor} max={s.maxFervor} ghost={false} fill="bg-[#e8893a]" />
+          {[35, 50].map((n) => (
+            <div key={n} className={`absolute -top-[2px] h-[7px] w-px ${s.fervor >= n ? 'bg-[#ffd29a]' : 'bg-bone/35'}`} style={{ left: `${(n / s.maxFervor) * 100}%` }} />
+          ))}
         </div>
         <div className="mt-2.5 flex items-center gap-4">
-          <div className="flex items-center gap-0.5">
-            {Array.from({ length: s.maxSips }, (_, i) => (
-              <Glyph key={i} id="water" size={19} strokeWidth={1.8} className={i < s.sips ? 'text-jade drop-shadow-[0_0_5px_rgba(95,224,200,0.7)]' : 'text-bone/20'} />
-            ))}
-          </div>
           <div className="flex items-center gap-2">
             {Array.from({ length: s.dodgeMax }, (_, i) => {
               const full = i < s.dodge
@@ -253,39 +252,50 @@ export function Hud({ game }: { game: Game }) {
               )
             })}
           </div>
-          {/* Запал: three fires that fill from the bottom; all three — rage */}
-          <div className={`flex items-center gap-2 transition-[filter] duration-300 ${s.zeal >= 30 ? 'drop-shadow-[0_0_6px_rgba(232,120,50,0.9)]' : ''}`}>
-            {[0, 1, 2].map((i) => {
-              const k = Math.max(0, Math.min(1, (s.zeal - i * 10) / 10))
-              return (
-                <div key={i} className="relative h-3 w-3 rotate-45 bg-black/50 shadow-[0_0_0_1px_rgba(196,85,42,0.5)]">
-                  <div className={`absolute inset-0 origin-bottom transition-transform duration-150 ${k >= 1 ? 'bg-[#ee8a3c]' : 'bg-[#a4452c]/80'}`} style={{ transform: `scaleY(${k})` }} />
-                </div>
-              )
-            })}
-          </div>
+          <span className="font-ui text-[12px] tabular-nums text-[#e8893a]/80 text-shade">запал {s.fervor}</span>
+          {k && k.waterDebt + k.earthHealed > 0 && (
+            <span className="flex items-center gap-1 font-ui text-[12px] text-bone/55 text-shade">
+              <Glyph id="water" size={15} className="text-[#b8e8ff]" />
+              {k.earthHealed > 0 && <span>отдано {k.earthHealed}</span>}
+              {k.waterDebt > 0 && <span className="text-[#d9714f]">выпито {k.waterDebt}</span>}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* bottom-right: skills */}
+      {/* bottom-right: the stances, the vessel, Kara */}
       <div className="absolute bottom-8 right-8 flex items-end gap-3 transition-opacity duration-[1500ms]" style={{ opacity: skillsOpacity }}>
         <div className="mr-2 flex items-end gap-2">
-          <Skill id="honey" k="Z" small count={honey} dim={honey === 0} charge={r && r.honeyT > 0 ? r.honeyT / 10 : undefined} active={!!r && r.honeyT > 0} />
-          <Skill id="kumys" k="C" small count={kumys} dim={kumys === 0} charge={r && r.kumysT > 0 ? r.kumysT / 30 : undefined} active={!!r && r.kumysT > 0} />
+          <Skill id={s.armed ? 'kalkan' : 'kylys'} k="1" active={s.weapon === 'blade'} dim={s.weapon !== 'blade'} />
+          {s.hasBow && (
+            <div className="flex flex-col items-center gap-1.5">
+              <Quiver n={arrows} max={maxArrows} />
+              <Skill
+                id={s.fireNocked ? 'arrow_fire' : 'bow'}
+                k="2"
+                count={arrows}
+                active={s.weapon === 'bow'}
+                dim={s.weapon !== 'bow' || arrows === 0}
+                warn={(s.weapon === 'bow' && arrows === 0) || s.bowPeak}
+                charge={s.bowDraw > 0 ? s.bowDraw : undefined}
+              />
+            </div>
+          )}
         </div>
-        {/* weapons: the one in hand is lit, the other waits on its key */}
-        <div className="mr-2 flex items-end gap-2">
-          <Skill id="kylys" k="1" active={s.weapon === 'blade'} dim={s.weapon !== 'blade'} />
-          <Skill id={fireArrows ? 'arrow_fire' : 'bow'} k="2" count={arrows} active={s.weapon === 'bow'} dim={s.weapon !== 'bow' || arrows === 0} warn={s.weapon === 'bow' && arrows === 0} charge={s.bowDraw > 0 ? s.bowDraw : undefined} />
-        </div>
-        <Skill id="arkan" k="Q" cd={s.lassoCd} />
-        <Skill id="eagle" k="E" cd={s.eagleCd} />
-        <Skill id="lantern" k="T" active={torchLit} dim={!s.torchOn && s.torchDoused <= 0} warn={s.torchDoused > 0 || oil < 0.15} charge={oil} />
+        {k?.vesselGiven ? <Skill id="water" k="F" active={s.sense} /> : <Skill id="vessel" k="F" active={v.lit && (v.focus || s.fireNocked)} dim={!v.lit && v.clog === 0} warn={v.clog > 0} cd={v.lit ? v.flashCd : 0} count={v.clog > 0 ? v.clog : undefined} />}
+        {s.son && s.son.state !== 'stay' && <Skill id="kurai" k="Q" cd={s.son.cd} dim={s.son.state !== 'follow'} active={s.son.cd === 0 && s.son.state === 'follow'} />}
+        <Skill id="eagle" k="R" cd={s.eagleCd} />
       </div>
 
-      {/* the tracker's sense: the world narrows to the ground under the lantern */}
-      <div className="absolute inset-0 transition-opacity duration-500" style={{ opacity: s.sense && !menu ? 1 : 0, background: 'radial-gradient(ellipse at 50% 55%, transparent 35%, rgba(40,22,6,0.35) 70%, rgba(8,5,2,0.7) 100%)' }} />
-      {s.sense && !menu && <div className="anim-quick absolute left-1/2 top-6 -translate-x-1/2 font-ui text-[13px] text-amber/80 text-shade">Чутьё</div>}
+      {/* the heat focus: the world narrows to the cone of the vessel's light */}
+      <div className="absolute inset-0 transition-opacity duration-500" style={{ opacity: v.focus && !menu ? 1 : 0, background: 'radial-gradient(ellipse at 50% 55%, transparent 35%, rgba(40,22,6,0.3) 70%, rgba(8,5,2,0.6) 100%)' }} />
+      {v.focus && !menu && <div className="anim-quick absolute left-1/2 top-6 -translate-x-1/2 font-ui text-[13px] text-amber/80 text-shade">Фокус жара</div>}
+      {/* chapter 3: the blood senses the way — a silver hush at the edges */}
+      <div className="absolute inset-0 transition-opacity duration-500" style={{ opacity: s.sense && !menu ? 1 : 0, background: 'radial-gradient(ellipse at 50% 55%, transparent 40%, rgba(120,150,190,0.12) 75%, rgba(20,30,45,0.45) 100%)' }} />
+      {s.sense && !menu && <div className="anim-quick absolute left-1/2 top-6 -translate-x-1/2 font-ui text-[13px] text-[#b8e8ff]/85 text-shade">Чутьё крови</div>}
+      {/* the scar on Aldar's chest flares: Shulgen is behind */}
+      {s.scar > 0 && !menu && <div className="pointer-events-none absolute inset-0" style={{ opacity: Math.min(1, s.scar * 1.6), boxShadow: 'inset 0 0 180px rgba(200,190,230,0.45)', background: 'radial-gradient(circle at 50% 52%, rgba(230,220,255,0.18), transparent 22%)' }} />}
+      {v.clog > 0 && playing && <div className="anim-quick absolute left-1/2 top-6 -translate-x-1/2 font-ui text-[13px] text-[#d9714f] text-shade"><Rich text="Прорези забиты тиной · вспышка [F] вычистит" /></div>}
       {s.debug && <div className="absolute left-3 top-3 font-mono text-[11px] text-bone/60">{s.debug}</div>}
       {lowHp && playing && <div className="absolute inset-0 shadow-[inset_0_0_160px_rgba(120,10,6,0.35)]" />}
     </div>

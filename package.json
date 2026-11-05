@@ -11,7 +11,12 @@
     "assets:wolf": "node tools/wolf-export.mjs",
     "check:wolf": "node tools/wolf-motion-check.mjs",
     "assets:marten-v2": "node tools/marten-v2-assets.mjs",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "check:chapter1": "node --experimental-strip-types --no-warnings tools/check-chapter1.mts",
+    "playtest:chapter1": "node tools/playtest-chapter1.mjs",
+    "check:chapters": "node --experimental-strip-types --no-warnings tools/check-chapters.mts",
+    "playtest:chapter2": "node tools/playtest-chapter2.mjs",
+    "playtest:chapter3": "node tools/playtest-chapter3.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.66.0",
@@ -23,6 +28,7 @@
     "@gltf-transform/core": "^4.5.1",
     "@gltf-transform/extensions": "^4.5.1",
     "@gltf-transform/functions": "^4.5.1",
+    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.12",
     "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

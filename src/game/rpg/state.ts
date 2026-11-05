@@ -1,231 +1,96 @@
-import {
-  ITEMS,
-  LEVEL_CAP,
-  LEVELS,
-  OIL_SECONDS,
-  WOLF_NODES,
-  type ItemId,
-  type NodeId,
-  type StatId,
-} from './data'
+// What Aldar carries (docs/COMBAT.md, docs/LEVELS.md «Карта ключевых триггеров», docs/ROADMAP.md «Решения реализации»).
+// Pure data: the Player and the Game read derived values from here.
 
-export interface RpgSnapshot {
-  level: number
-  skaz: number
-  levelFrom: number
-  levelTo: number
-  ready: number
-  statPoints: number
-  tamgaPoints: number
-  stats: Record<StatId, number>
-  wolfOpen: boolean
-  nodes: NodeId[]
-  items: [ItemId, number][]
-  amulets: ItemId[]
-  equipped: ItemId | null
-  /** worn clothes: null = the base shirt (docs/EQUIPMENT.md) */
-  outfit: OutfitId | null
-  outfits: OutfitId[]
-  arrowType: 'arrow' | 'arrow_fire'
-  oil: number
-  honeyT: number
-  kumysT: number
-  maxHp: number
-  /** what one more point would change: [label, now, next] */
-  effects: Record<StatId, [string, string, string][]>
+/** keepsakes act always once found; they are listed in the journal */
+export type Keepsake = 'fang' | 'feather'
+
+export const KEEPSAKES: Record<Keepsake, { name: string; desc: string; verse: string }> = {
+  fang: { name: 'Волчий клык', desc: 'Ответное рассечение +20% урона.', verse: 'Охотник волчьего рода носил его на шее. Шнурок истёрся до нитки.' },
+  feather: { name: 'Воронье перо', desc: 'Упавшие и застрявшие стрелы видны в темноте.', verse: 'Ворон стащил его у кого-то в гнездо. Перо всё ещё пахнет дымом.' },
 }
 
-/** Clothes Timer can wear over the base body; each is a mesh `outfit_<id>` in hero_rig.glb. */
-export type OutfitId = 'kaftan'
-export const OUTFITS: Record<OutfitId, { name: string; desc: string; verse: string }> = {
-  kaftan: { name: 'Кафтан беркутчи', desc: 'Лёгкая одежда охотника: стёганый кафтан, волчья накидка, перчатка для беркута.', verse: 'Айсылу вышивала кускар по краю всю зиму.' },
+export interface KitSnapshot {
+  ember: boolean
+  bow: boolean
+  arrows: number
+  maxArrows: number
+  fervor: number
+  maxFervor: number
+  waterDebt: number
+  earthHealed: number
+  keepsakes: Keepsake[]
+  vesselGiven: boolean
 }
 
-/** Character progression + inventory. Pure data: the Player reads derived values from here. */
-export class RpgState {
-  skaz = 0
-  level = 1
-  statPoints = 0
-  tamgaPoints = 0
-  stats: Record<StatId, number> = { str: 1, end: 1, agi: 1, spi: 1 }
-  wolfOpen = false
-  nodes = new Set<NodeId>()
-  items = new Map<ItemId, number>()
-  amulets = new Set<ItemId>()
-  equipped: ItemId | null = null
-  outfit: OutfitId | null = 'kaftan'
-  outfits = new Set<OutfitId>(['kaftan'])
-  arrowType: 'arrow' | 'arrow_fire' = 'arrow'
-  oil = 1
-  honeyT = 0
-  kumysT = 0
+export class KitState {
+  /** the last coal of the home hearth is in the belt vessel (TRG_CH1_EMBER): light, kalkan */
+  ember = false
+  /** Aldar's bow, lost by Azamat and found by the stream (TRG_CH1_BOW_STREAM) */
+  bow = false
+  arrows = 0
+  maxArrows = 5
+  /** Запал */
+  fervor = 40
+  /** drops of living water drunk */
+  waterDebt = 0
+  /** drops given back to the earth */
+  earthHealed = 0
+  keepsakes = new Set<Keepsake>()
+  /** chapter 3, zone 2: the vessel is left with Azamat — no light, no flash, no fire arrows (docs/LEVELS.md) */
+  vesselGiven = false
 
-  constructor() {
-    this.items.set('arrow', 20)
-    this.items.set('honey', 1)
+  get maxFervor() {
+    return 100 + 20 * this.waterDebt
   }
-
-  // ---------------------------------------------------------------- skaz & levels
-  levelFor(skaz: number) {
-    let l = 1
-    while (l < LEVEL_CAP && skaz >= LEVELS[l]) l++
-    return l
-  }
-  /** levels earned but not yet "sung" at a rest */
-  get ready() {
-    return this.levelFor(this.skaz) - this.level
-  }
-  addSkaz(n: number) {
-    const before = this.ready
-    this.skaz += n
-    return this.ready > before
-  }
-  /** At a spring or fire: the sesen sings the gathered lines and Timer grows. */
-  sing() {
-    const n = this.ready
-    if (n <= 0) return 0
-    this.level += n
-    this.statPoints += n
-    this.tamgaPoints += n
-    return n
-  }
-  /** give back a point (only what was spent at this rest — the Game keeps that count) */
-  lower(stat: StatId) {
-    if (this.stats[stat] <= 1) return false
-    this.stats[stat]--
-    this.statPoints++
-    return true
-  }
-  raise(stat: StatId) {
-    if (this.statPoints <= 0 || this.stats[stat] >= 20) return false
-    this.statPoints--
-    this.stats[stat]++
-    return true
-  }
-  canLearn(id: NodeId) {
-    const def = WOLF_NODES.find((n) => n.id === id)
-    if (!def || !this.wolfOpen || this.nodes.has(id) || this.tamgaPoints <= 0)
-      return false
-    return !def.requires || this.nodes.has(def.requires)
-  }
-  learn(id: NodeId) {
-    if (!this.canLearn(id)) return false
-    this.tamgaPoints--
-    this.nodes.add(id)
-    return true
-  }
-  has(id: NodeId) {
-    return this.nodes.has(id)
-  }
-
-  // ---------------------------------------------------------------- inventory
-  count(id: ItemId) {
-    return this.items.get(id) ?? 0
-  }
-  /** returns how many actually fit */
-  add(id: ItemId, n: number) {
-    const def = ITEMS[id]
-    if (def.kind === 'amulet') {
-      const fresh = !this.amulets.has(id)
-      this.amulets.add(id)
-      if (!this.equipped) this.equipped = id
-      return fresh ? 1 : 0
-    }
-    const cur = this.count(id)
-    const next = def.max ? Math.min(def.max, cur + n) : cur + n
-    this.items.set(id, next)
-    return next - cur
-  }
-  take(id: ItemId, n = 1) {
-    const cur = this.count(id)
-    if (cur < n) return false
-    this.items.set(id, cur - n)
-    return true
-  }
-  equip(id: ItemId | null) {
-    if (id && !this.amulets.has(id)) return
-    this.equipped = id
-  }
-  wearing(id: ItemId) {
-    return this.equipped === id
-  }
-
-  // ---------------------------------------------------------------- derived values
-  get maxHp() {
-    return Math.round(100 + (this.stats.end - 1) * 12)
-  }
+  /** «повышает урон кылыса»: +10% for every drop drunk */
   get meleeMult() {
-    return 1 + (this.stats.str - 1) * 0.06
+    return 1 + 0.1 * this.waterDebt
   }
-  get postureMult() {
-    return 1 + (this.stats.str - 1) * 0.05
+  /** the draw is 0.9 s and grows 15% faster for every drop drunk */
+  get drawTime() {
+    return 0.9 / (1 + 0.15 * this.waterDebt)
   }
-  get bowDrawTime() {
-    return 0.65 * (1 - (this.stats.agi - 1) * 0.05)
-  }
-  get arrowMult() {
-    return 1 + (this.stats.agi - 1) * 0.06
-  }
-  get dodgeRecharge() {
-    return (
-      (1.1 * (1 - (this.stats.agi - 1) * 0.04)) / (this.kumysT > 0 ? 1.6 : 1)
-    )
-  }
-  get eagleCd() {
-    return 14 * (1 - (this.stats.spi - 1) * 0.06)
-  }
-  get oilDrain() {
-    return (1 / OIL_SECONDS) * (1 - (this.stats.spi - 1) * 0.06) * (this.wearing('arslan_steel') ? 0.5 : 1)
-  }
-  get waterHeal() {
-    return Math.round(48 * (1 + (this.stats.spi - 1) * 0.07))
-  }
-  get haste() {
-    return this.kumysT > 0 ? 1.6 : 1
+  /** the coal dims by 6% for every drop: the water of Shulgen drives out Aldar's own blood */
+  get lightMult() {
+    return Math.max(0.4, 1 - 0.06 * this.waterDebt)
   }
 
-  private effectRows(id: StatId): [string, number | string][] {
-    const pct = (m: number) => `+${Math.round((m - 1) * 100)}%`
-    const sec = (v: number) => `${v.toFixed(2).replace(/0$/, '')} с`
-    if (id === 'str') return [['Урон клинка', pct(this.meleeMult)], ['Урон по стойке', pct(this.postureMult)]]
-    if (id === 'end') return [['Здоровье', this.maxHp]]
-    if (id === 'agi') return [['Рывок восстанавливается', sec(this.dodgeRecharge)], ['Натяжение лука', sec(this.bowDrawTime)], ['Урон стрел', pct(this.arrowMult)]]
-    return [['Беркут восстанавливается', `${this.eagleCd.toFixed(1)} с`], ['Фонарь горит', `${(1 / this.oilDrain / 60).toFixed(1)} мин`], ['Глоток живой воды', this.waterHeal]]
+  /** returns how many fit in the quiver */
+  addArrows(n: number) {
+    const before = this.arrows
+    this.arrows = Math.min(this.maxArrows, this.arrows + n)
+    return this.arrows - before
+  }
+  takeArrow() {
+    if (this.arrows <= 0) return false
+    this.arrows--
+    return true
+  }
+  get quiverRoom() {
+    return this.maxArrows - this.arrows
   }
 
-  /** current and +1 values of everything a stat touches */
-  effects(id: StatId): [string, string, string][] {
-    const now = this.effectRows(id)
-    this.stats[id]++
-    const next = this.effectRows(id)
-    this.stats[id]--
-    return now.map(([label, v], i) => [label, String(v), String(next[i][1])])
+  addFervor(n: number) {
+    this.fervor = Math.min(this.maxFervor, this.fervor + n)
+  }
+  spendFervor(n: number) {
+    if (this.fervor < n) return false
+    this.fervor -= n
+    return true
   }
 
-  snapshot(): RpgSnapshot {
+  snapshot(): KitSnapshot {
     return {
-      level: this.level,
-      skaz: this.skaz,
-      levelFrom: LEVELS[this.level - 1] ?? 0,
-      levelTo:
-        LEVELS[Math.min(LEVEL_CAP, this.level)] ?? LEVELS[LEVELS.length - 1],
-      ready: this.ready,
-      statPoints: this.statPoints,
-      tamgaPoints: this.tamgaPoints,
-      stats: { ...this.stats },
-      wolfOpen: this.wolfOpen,
-      nodes: [...this.nodes],
-      items: [...this.items.entries()].filter(([, n]) => n > 0),
-      amulets: [...this.amulets],
-      equipped: this.equipped,
-      outfit: this.outfit,
-      outfits: [...this.outfits],
-      arrowType: this.arrowType,
-      oil: Math.round(this.oil * 100) / 100,
-      honeyT: Math.ceil(this.honeyT),
-      kumysT: Math.ceil(this.kumysT),
-      maxHp: this.maxHp,
-      effects: { str: this.effects('str'), end: this.effects('end'), agi: this.effects('agi'), spi: this.effects('spi') },
+      ember: this.ember,
+      bow: this.bow,
+      arrows: this.arrows,
+      maxArrows: this.maxArrows,
+      fervor: Math.floor(this.fervor),
+      maxFervor: this.maxFervor,
+      waterDebt: this.waterDebt,
+      earthHealed: this.earthHealed,
+      keepsakes: [...this.keepsakes],
+      vesselGiven: this.vesselGiven,
     }
   }
 }

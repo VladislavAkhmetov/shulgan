@@ -8,6 +8,8 @@ export interface Circle {
   r: number
   /** blocks line of sight */
   occludes: boolean
+  /** low over water or ground (the raised drawbridge's gap): it stops the feet, an arrow flies over it */
+  low?: boolean
 }
 
 /**
@@ -22,6 +24,8 @@ export class Field {
   readonly nx: number
   readonly nz: number
   readonly sdf: Float32Array
+  /** the same field for the eye: deep water stops the feet, not the gaze or an arrow (the same array without open cells) */
+  readonly see: Float32Array
   readonly level: LevelData
   readonly circles: Circle[] = []
   private cellCircles: Circle[][]
@@ -34,16 +38,21 @@ export class Field {
     this.level = level
     this.nx = Math.ceil(level.width / this.res)
     this.nz = Math.ceil(level.depth / this.res)
-    this.sdf = new Float32Array(this.nx * this.nz)
     this.cellCircles = Array.from({ length: level.cols * level.rows }, () => [])
     this.blocked = new Uint8Array(level.cols * level.rows)
     this.flow = new Float32Array(level.cols * level.rows)
-    this.buildSdf()
+    this.sdf = this.buildSdf(level.walk)
+    if (level.open.some((v) => v)) {
+      const seeMask = new Uint8Array(level.walk.length)
+      for (let i = 0; i < seeMask.length; i++) seeMask[i] = level.walk[i] | level.open[i]
+      this.see = this.buildSdf(seeMask)
+    } else this.see = this.sdf
   }
 
-  private buildSdf() {
+  private buildSdf(free: Uint8Array) {
     const { nx, nz, res, level } = this
     const N = nx * nz
+    const out = new Float32Array(N)
     const solid = new Uint8Array(N)
     for (let j = 0; j < nz; j++) {
       for (let i = 0; i < nx; i++) {
@@ -51,7 +60,7 @@ export class Field {
         const z = (j + 0.5) * res
         const c = Math.floor(x / CELL)
         const r = Math.floor(z / CELL)
-        const w = c >= 0 && r >= 0 && c < level.cols && r < level.rows ? level.walk[r * level.cols + c] : 0
+        const w = c >= 0 && r >= 0 && c < level.cols && r < level.rows ? free[r * level.cols + c] : 0
         solid[j * nx + i] = w ? 0 : 1
       }
     }
@@ -82,9 +91,10 @@ export class Field {
             n++
           }
         }
-        this.sdf[j * nx + i] = s / n
+        out[j * nx + i] = s / n
       }
     }
+    return out
   }
 
   addCircle(c: Circle) {
@@ -108,6 +118,28 @@ export class Field {
 
   /** Bilinear SDF sample in metres. Outside the map is solid. */
   sample(x: number, z: number) {
+    return this.sampleOf(this.sdf, x, z)
+  }
+
+  /** the field for the eye and for arrows: deep water is open */
+  seeSample(x: number, z: number) {
+    return this.see === this.sdf ? this.sampleOf(this.sdf, x, z) : this.sampleOf(this.see, x, z)
+  }
+
+  /** what an arrow in flight runs into: walls and every obstacle circle, but not open water */
+  seeClearance(x: number, z: number) {
+    let d = this.seeSample(x, z)
+    for (const c of this.circlesNear(x, z)) if (!c.low) d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r)
+    return d
+  }
+
+  /** deep water under this point (an arrow that falls here is lost) */
+  isDeep(x: number, z: number) {
+    const ci = this.cellOf(x, z)
+    return ci >= 0 && this.level.deep[ci] === 1 && this.level.walk[ci] === 0
+  }
+
+  private sampleOf(s: Float32Array, x: number, z: number) {
     const { nx, nz, res } = this
     const fx = x / res - 0.5
     const fz = z / res - 0.5
@@ -116,7 +148,6 @@ export class Field {
     if (i < 0 || j < 0 || i >= nx - 1 || j >= nz - 1) return -5
     const tx = fx - i
     const tz = fz - j
-    const s = this.sdf
     const a = s[j * nx + i]
     const b = s[j * nx + i + 1]
     const c = s[(j + 1) * nx + i]
@@ -194,7 +225,7 @@ export class Field {
         }
       }
       if (t >= hitC) return hitC
-      const d = this.sample(x, z)
+      const d = this.seeSample(x, z)
       if (d < -pen) return Math.min(t, hitC)
       t += d > 0 ? Math.min(Math.max(d * 0.9, 0.2), 0.9) : 0.2
     }

@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-pnpm run dev
+exec pnpm exec vite --port "$PORT" --host "${FIGMA_DEV_SERVER_HOST:-0.0.0.0}"

@@ -7,12 +7,13 @@ import type { World } from '../world'
 import { dampAngle, rand, wrapAngle } from '../util'
 
 /**
- * Susar, the pine marten Timer frees from a trap mid-way through the urman (docs/COMPANION.md).
- * She keeps her distance, hides when blood is spilled, and smells what Timer cannot see:
- * every unseen enemy within reach is marked for him (Game draws the marks).
+ * Susar, the pine marten Aldar frees from a trap mid-way through the urman (docs/COMPANION.md) — the soul of his mother.
+ * She keeps to the outer edge of the vessel's light, 5–7 m ahead; smells what Aldar cannot see within 12 m (ALERT_STALK)
+ * and leaps at a veiled enemy to tear its veil for 8 s, leaving her rusty mark (EXPOSE_LEAP). She never needs guarding.
  */
 
-const SENSE_R = 22
+const SENSE_R = 12
+const EXPOSE_SEC = 8
 
 /** Actor transform only; the loaded skin is the sole visible companion. */
 class MartenSceneRig extends Rig {
@@ -20,17 +21,23 @@ class MartenSceneRig extends Rig {
   protected locomotion(): V3 { return [0, 0, 0] }
 }
 
-export type MartenState = 'trapped' | 'freed' | 'follow' | 'alert' | 'hide' | 'sniff'
+export type MartenState = 'trapped' | 'freed' | 'follow' | 'alert' | 'hide' | 'sniff' | 'leap' | 'point'
 
 export class Marten extends Actor {
   rig: MartenSceneRig
   readonly ready: Promise<boolean>
   state: MartenState = 'trapped'
-  /** enemies she smells right now (unseen by Timer) */
+  /** enemies she smells right now (unseen by Aldar) */
   readonly sensed: Enemy[] = []
   /** set by the game each frame */
   combat = false
   clue: THREE.Vector3 | null = null
+  /** the heat focus points at a veiled enemy: she goes for it at once */
+  command: Enemy | null = null
+  /** a tree to point her muzzle at (Shurale hiding in the crown) */
+  pointAt: THREE.Vector3 | null = null
+  private leapAt: Enemy | null = null
+  private leapCd = 0
   private st = 0
   private speedNow = 0
   private goal = new THREE.Vector3()
@@ -89,7 +96,7 @@ export class Marten extends Actor {
     let pose: MartenPose = 'stand'
     let speed = 0
     const toP = Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z)
-    const canRest = this.state === 'follow' && p.speedNow < 0.2 && toP >= 3 && toP <= 4.8 && !this.combat && !this.clue && this.sensed.length === 0
+    const canRest = this.state === 'follow' && p.speedNow < 0.2 && toP >= 4 && toP <= 7.5 && !this.combat && !this.clue && this.sensed.length === 0
     if (canRest) this.idleT += dt
     else { if (this.idleT > 8) this.wakeT = 1.2; this.idleT = 0 }
     this.wakeT = Math.max(0, this.wakeT - dt)
@@ -112,20 +119,48 @@ export class Marten extends Actor {
     } else {
       this.sense(dt)
       if (toP > 26) this.catchUp()
-      if (this.state === 'alert') {
+      this.leapCd = Math.max(0, this.leapCd - dt)
+      const leap = this.leapAt
+      if (leap && (!leap.alive || !leap.cloakedNow)) this.leapAt = null
+      if (this.leapAt) {
+        // EXPOSE_LEAP: a dash and a bound at the veiled thing
+        const e = this.leapAt
+        this.state = 'leap'
+        speed = this.runTo(e.pos, 12, dt)
+        if (Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z) < e.radius + 0.9) {
+          e.expose(EXPOSE_SEC)
+          w.sound('chirr', this.pos, { indicate: false })
+          w.vfx.rings.spawn(e.pos.x, e.pos.z, { from: 0.2, to: 2.2, dur: 0.5, color: new THREE.Color(2.2, 0.8, 0.25), width: 0.06 })
+          for (let i = 0; i < 24; i++) w.vfx.add.spawn({ x: e.pos.x + rand(-0.3, 0.3), y: rand(0.3, 1.8), z: e.pos.z + rand(-0.3, 0.3), vx: rand(-2, 2), vy: rand(0.5, 2), vz: rand(-2, 2), r: 2.0, g: 1.0, b: 0.35, size: 0.05, life: 0.7, drag: 2 })
+          this.leapAt = null
+          this.leapCd = 1.5
+          this.state = 'follow'
+        }
+      } else if (this.pointAt) {
+        // points her muzzle at the tree where the master of the forest hides
+        this.state = 'point'
+        const t = this.pointAt
+        const away = new THREE.Vector3(p.pos.x - t.x, 0, p.pos.z - t.z).normalize()
+        this.goal.set(t.x + away.x * 1.8, 0, t.z + away.z * 1.8)
+        speed = this.runTo(this.goal, 10, dt)
+        if (speed < 0.1) {
+          pose = 'alert'
+          this.face(t, dt)
+        }
+      } else if (this.state === 'alert') {
         pose = 'alert'
         if (this.alertAt) this.face(this.alertAt.pos, dt)
         if (this.st > 1.4) this.state = 'follow'
       } else if (this.combat || (this.state === 'hide' && this.hideT > 0)) {
-        // hides for the fight and stays put a moment after it, before creeping back
+        // keeps out of the blows during a fight and stays put a moment after it, still sniffing for the veiled ones
         if (this.combat) this.hideT = 2.2
         else this.hideT -= dt
         this.state = 'hide'
-        // away from the nearest enemy, but within sight of Timer
+        // away from the nearest enemy, but within sight of Aldar
         const e = this.nearestEnemy()
         const from = e ? e.pos : p.pos
         const dir = new THREE.Vector3(p.pos.x - from.x, 0, p.pos.z - from.z).normalize()
-        this.goal.set(p.pos.x + dir.x * 9, 0, p.pos.z + dir.z * 9)
+        this.goal.set(p.pos.x + dir.x * 7, 0, p.pos.z + dir.z * 7)
         speed = this.runTo(this.goal, 7, dt)
         if (speed < 0.1) this.face(from, dt)
       } else if (this.clue && Math.hypot(this.clue.x - this.pos.x, this.clue.z - this.pos.z) < 12 && this.sensed.length === 0) {
@@ -139,21 +174,21 @@ export class Marten extends Actor {
         }
       } else {
         this.state = 'follow'
-        // stay within Timer's peripheral sight (~4.6 m) but never at his feet; when he moves she scouts a little ahead
+        // on the outer edge of the vessel's light, 5–7 m ahead along the trail; never at his feet
         const moving = p.speedNow > 0.5
         if (this.wakeT > 0 && !this.combat) {
           this.face(p.pos, dt)
         } else if (this.idleT > 8) {
           pose = 'curl'
-        } else if (moving || toP > 4.8 || toP < 3) {
-          const ahead = p.facing + this.side * 0.75
-          let gx = p.pos.x + Math.sin(ahead) * 3.9
-          let gz = p.pos.z + Math.cos(ahead) * 3.9
+        } else if (moving || toP > 7.2 || toP < 4.4) {
+          const ahead = p.facing + this.side * 0.4
+          let gx = p.pos.x + Math.sin(ahead) * 5.8
+          let gz = p.pos.z + Math.cos(ahead) * 5.8
           if (this.w.field.clearance(gx, gz) < 0.4) {
             // the other side of the path
             this.side = -this.side
-            gx = p.pos.x + Math.sin(p.facing - this.side * 0.75) * 3.9
-            gz = p.pos.z + Math.cos(p.facing - this.side * 0.75) * 3.9
+            gx = p.pos.x + Math.sin(p.facing - this.side * 0.4) * 5.8
+            gz = p.pos.z + Math.cos(p.facing - this.side * 0.4) * 5.8
           }
           this.goal.set(gx, 0, gz)
           speed = this.runTo(this.goal, toP > 8 ? 8 : Math.max(2, p.speedNow * 1.15), dt)
@@ -201,16 +236,22 @@ export class Marten extends Actor {
     }
   }
 
-  /** smell: unseen enemies within reach; the first time she smells one, she rears up and chitters */
+  /**
+   * ALERT_STALK: unseen enemies within 12 m (a phantom, a buried ubyr, Shurale in the fog); the first time she smells one
+   * she freezes and stares at it. A veiled one close to Aldar, or the one his heat focus points at, she leaps at.
+   */
   private sense(dt: number) {
     void dt
     this.sensed.length = 0
     const p = this.w.player.pos
     for (const e of this.w.enemies) {
       if (!e.alive || e.removed) continue
-      if (e.visibleNow && !e.hidden) continue
-      if (Math.hypot(e.pos.x - p.x, e.pos.z - p.z) > SENSE_R) continue
+      if (e.visibleNow && !e.hidden && !e.cloakedNow) continue
+      const dp = Math.hypot(e.pos.x - p.x, e.pos.z - p.z)
+      const dm = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z)
+      if (Math.min(dp, dm) > SENSE_R) continue
       this.sensed.push(e)
+      if (e.cloakedNow && !this.leapAt && this.leapCd <= 0 && (dp < 7 || this.command === e)) this.leapAt = e
       if (!this.warned.has(e) && !this.combat && this.state !== 'alert') {
         this.warned.add(e)
         this.alertAt = e
@@ -235,7 +276,7 @@ export class Marten extends Actor {
     return best
   }
 
-  /** fell far behind (respawn, a closed gate): appear behind Timer, out of his sight */
+  /** fell far behind (respawn, a closed gate): appear behind Aldar, out of his sight */
   private catchUp() {
     const p = this.w.player
     const back = p.gaze + Math.PI

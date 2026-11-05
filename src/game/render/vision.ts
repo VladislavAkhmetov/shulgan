@@ -26,7 +26,7 @@ interface VisLight {
  *
  * Light gates the cone (docs/GDD.md, «Свет и обзор»): past the night-eyes radius a point is seen only
  * where something lights it — fires, braziers, moon shafts, the lantern. The peripheral disc is not gated:
- * what is right next to Timer he senses in any dark.
+ * what is right next to Aldar he senses in any dark.
  */
 export class Vision {
   readonly min: THREE.Vector2
@@ -47,7 +47,7 @@ export class Vision {
   halfAngle = THREE.MathUtils.degToRad(57)
   periR = 4.6
   enabled = true
-  /** night eyes: what Timer makes out with no light at all (Game ties it to the moon behind the clouds) */
+  /** night eyes: what Aldar makes out with no light at all (Game ties it to the moon behind the clouds) */
   darkFull = 4
   darkFade = 8
   private lights: VisLight[] = []
@@ -170,7 +170,7 @@ export class Vision {
     for (const l of list) if (l.level > 0.02) this.lights.push({ x: l.x, z: l.z, full: l.full * l.level, fade: l.fade * l.level })
   }
 
-  /** 0..1: how well Timer could make out (x,z) by light alone (night eyes or any lit place) */
+  /** 0..1: how well Aldar could make out (x,z) by light alone (night eyes or any lit place) */
   lightAt(x: number, z: number) {
     let lit = 1 - smoothstep(this.darkFull, this.darkFade, Math.hypot(x - this.origin.x, z - this.origin.y))
     for (const l of this.lights) {

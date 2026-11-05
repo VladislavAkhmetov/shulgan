@@ -45,7 +45,7 @@ const UP = ['ArrowUp', 'KeyW']
 const DOWN = ['ArrowDown', 'KeyS']
 const LEFT = ['ArrowLeft', 'KeyA']
 const RIGHT = ['ArrowRight', 'KeyD']
-const OK = ['Enter', 'NumpadEnter', 'Space', 'KeyF']
+const OK = ['Enter', 'NumpadEnter', 'Space', 'KeyE']
 
 interface NavOpts {
   count: number
@@ -75,8 +75,8 @@ export function useNav({ count, enabled = true, axis = 'y', onOk, onBack, onSide
     if (!enabled) return
     const prev = axis === 'y' ? UP : LEFT
     const next = axis === 'y' ? DOWN : RIGHT
-    const sideA = axis === 'y' ? [...LEFT, 'KeyQ'] : UP
-    const sideB = axis === 'y' ? [...RIGHT, 'KeyE'] : DOWN
+    const sideA = axis === 'y' ? LEFT : UP
+    const sideB = axis === 'y' ? RIGHT : DOWN
     const onKey = (e: KeyboardEvent) => {
       const r = ref.current
       let used = true

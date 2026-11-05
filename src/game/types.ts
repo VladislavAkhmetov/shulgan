@@ -19,9 +19,12 @@ export interface HitInfo {
   knock: number
   heavy?: boolean
   grab?: boolean
+  /** a red-flash attack: the kalkan does not stop it (docs/COMBAT.md) */
+  unblockable?: boolean
 }
 
-export type HitResult = 'hit' | 'iframe' | 'perfect' | 'immune'
+/** perfect = dodged in the first moment · parry = met by the kalkan's boss at the right moment · blocked = taken on the shield */
+export type HitResult = 'hit' | 'iframe' | 'perfect' | 'parry' | 'blocked' | 'immune'
 
 export interface AttackDef {
   dur: number
@@ -42,6 +45,8 @@ export interface AttackDef {
   sound?: SoundKind
   swing?: SoundKind
   grab?: boolean
+  /** a red flash before it: cannot be blocked or parried, only dodged or broken by Kara */
+  unblockable?: boolean
   /** visual slash arc */
   slash?: { dir: number; tilt?: number; scale?: number; color?: THREE.Color }
 }

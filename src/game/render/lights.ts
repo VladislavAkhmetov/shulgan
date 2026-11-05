@@ -16,13 +16,16 @@ const POOL = 6
 
 /**
  * Forward lighting with a fixed light count (no shader recompiles):
- * moon (directional, shadowed, follows the hero), cold hemisphere fill, the hero's lantern
+ * moon (directional, shadowed, follows the hero), cold hemisphere fill, the coal in the hero's belt vessel
  * (point, shadowed) and a pool of unshadowed point lights assigned to the nearest sources.
  */
 export class Lighting {
   readonly moon: THREE.DirectionalLight
   readonly hemi: THREE.HemisphereLight
+  /** the coal in Aldar's belt vessel (Ут-һауыт) */
   readonly lantern: THREE.PointLight
+  /** the heat focus: the vessel's light gathered into a cone ahead (no shadow) */
+  readonly focus: THREE.SpotLight
   private pool: THREE.PointLight[] = []
   readonly sources: LightSource[] = []
   readonly moonOffset = new THREE.Vector3(-14, 30, -9)
@@ -52,13 +55,20 @@ export class Lighting {
     this.lantern.castShadow = true
     this.lantern.shadow.mapSize.set(512, 512)
     this.lantern.shadow.camera.near = 0.2
-    this.lantern.shadow.camera.far = 17
+    // past ~12 m the coal's light is too faint to show a shadow
+    this.lantern.shadow.camera.far = 12
     this.lantern.shadow.bias = -0.004
     this.lantern.shadow.radius = 2
     this.lantern.shadow.camera.layers.set(4)
     // the cube shadow (6 passes) refreshes every other frame; at 60 fps the swing still reads smoothly
     this.lantern.shadow.autoUpdate = false
     scene.add(this.lantern)
+
+    this.focus = new THREE.SpotLight(new THREE.Color(1.0, 0.6, 0.28), 0, 15, 0.42, 0.55, 1.3)
+    // in the scene only while the focus is held: every lit material skips its cost the rest of the time
+    // (both light states are compiled up front by Game.build, so switching it never stalls)
+    this.focus.visible = false
+    scene.add(this.focus, this.focus.target)
 
     for (let i = 0; i < POOL; i++) {
       const l = new THREE.PointLight(0xffffff, 0, 12, 1.8)

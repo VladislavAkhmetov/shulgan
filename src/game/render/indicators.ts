@@ -71,10 +71,29 @@ export class SoundIndicators {
     this.list.length = 0
   }
 
-  /** Thin health/posture bar above an enemy (drawn after draw()). */
-  drawBar(x: number, y: number, hp: number, posture: number, broken: boolean) {
+  /** Thin health/posture bar above an enemy (drawn after draw()); the companions' marks as small diamonds over it. */
+  drawBar(x: number, y: number, hp: number, posture: number, broken: boolean, marks: { red: number; white: number; teal: number } | null = null) {
     const c = this.ctx
     const w = 54
+    if (marks) {
+      const list: string[] = []
+      if (marks.red > 0) list.push('rgba(236,120,46,0.95)')
+      if (marks.white > 0) list.push('rgba(240,236,224,0.95)')
+      if (marks.teal > 0) list.push('rgba(95,224,200,0.95)')
+      list.forEach((col, i) => {
+        const mx = x + (i - (list.length - 1) / 2) * 11
+        const my = y - 9
+        c.globalCompositeOperation = 'source-over'
+        c.fillStyle = col
+        c.beginPath()
+        c.moveTo(mx, my - 4)
+        c.lineTo(mx + 4, my)
+        c.lineTo(mx, my + 4)
+        c.lineTo(mx - 4, my)
+        c.closePath()
+        c.fill()
+      })
+    }
     c.globalCompositeOperation = 'source-over'
     c.fillStyle = 'rgba(8,6,6,0.65)'
     c.fillRect(x - w / 2 - 1, y - 1, w + 2, 5)

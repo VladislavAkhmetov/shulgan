@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { Actor, inArc } from './actor'
 import type { Clip, Rig } from './rig'
-import { ALBASTY_CLIPS, createAlbasty, UBYR_CLIPS, WOLF_CLIPS } from './models'
+import { MOROK_CLIPS, createMorok, UBYR_CLIPS, WOLF_CLIPS } from './models'
 import { UbyrRig } from './ubyrRig'
 import { WolfRig } from './wolfRig'
 import type { World } from '../world'
@@ -11,8 +11,19 @@ import type { Tone } from '../render/indicators'
 import type { Player } from './player'
 import { clamp, dampAngle, rand, smoothstep } from '../util'
 
-export type EKind = 'ubyr' | 'wolf' | 'albasty' | 'boss'
-export type EState = 'idle' | 'alert' | 'chase' | 'attack' | 'hurt' | 'stagger' | 'pulled' | 'stun' | 'dead' | 'special' | 'finished' | 'dormant'
+export type EKind = 'ubyr' | 'wolf' | 'morok' | 'boss' | 'guard' | 'archer' | 'shade'
+export type EState = 'idle' | 'alert' | 'chase' | 'attack' | 'hurt' | 'stagger' | 'stun' | 'dead' | 'special' | 'finished' | 'dormant'
+
+/** the companions' marks (docs/COMPANION.md): rusty — Susar, white — Kara, turquoise — the kurai (chapter 2) */
+export type MarkKind = 'red' | 'white' | 'teal'
+
+const MARK_COLOR: Record<MarkKind, THREE.Color> = {
+  red: new THREE.Color(2.2, 0.75, 0.2),
+  white: new THREE.Color(1.9, 1.9, 1.8),
+  teal: new THREE.Color(0.4, 2.2, 2.1),
+}
+const GLINT_AMBER = new THREE.Color(2.2, 1.4, 0.45)
+const GLINT_RED = new THREE.Color(2.6, 0.22, 0.1)
 
 let nextId = 1
 
@@ -51,11 +62,94 @@ export abstract class Enemy extends Actor {
   bloodColor = new THREE.Color(0.2, 0.03, 0.04)
   stagDur = 2.6
   stunT = 0
-  pullBy: Player | null = null
   desire = new THREE.Vector3()
+  /** seconds left on each companion mark */
+  readonly marks: Record<MarkKind, number> = { red: 0, white: 0, teal: 0 }
+  /** unseen and untouchable until Susar tears the veil (docs/COMPANION.md, EXPOSE_LEAP) */
+  cloaked = false
+  exposedT = 0
+  /** stands out of the kylys's reach (the pack leader on his ledge): only arrows and Kara get him */
+  ledge = false
+  /** arrows that went in and stayed: they fall out by the body (docs/COMBAT.md, «Возврат стрел») */
+  arrowsIn = 0
+  /** the colour of the flash before the current blow: amber — the kalkan can meet it, red — it cannot */
+  get telegraph(): 'amber' | 'red' | null {
+    const a = this.atk
+    if (this.state !== 'attack' || !a || this.st / a.dur >= a.hitStart) return null
+    return a.grab || a.unblockable ? 'red' : 'amber'
+  }
   speedNow = 0
   protected tmp = new THREE.Vector3()
   name = ''
+
+  /** veiled right now: no blow, arrow or eagle can find it, and it is not drawn */
+  get cloakedNow() {
+    return this.cloaked && this.exposedT <= 0
+  }
+
+  mark(kind: MarkKind, sec: number) {
+    if (!this.alive) return
+    this.marks[kind] = Math.max(this.marks[kind], sec)
+  }
+
+  /** Susar tears the veil for a while (and leaves her rusty mark) */
+  expose(sec: number) {
+    if (!this.alive) return
+    this.exposedT = Math.max(this.exposedT, sec)
+    this.mark('red', sec)
+  }
+
+  /** A counter, a shield bash or a piercing arrow sets the marks off: each burns for extra damage and balance. */
+  detonateMarks() {
+    if (!this.alive) return 0
+    let n = 0
+    for (const k of Object.keys(this.marks) as MarkKind[]) {
+      if (this.marks[k] <= 0) continue
+      this.marks[k] = 0
+      n++
+      const c = MARK_COLOR[k]
+      this.w.vfx.rings.spawn(this.pos.x, this.pos.z, { from: 0.3, to: 2.4, dur: 0.4, color: c, width: 0.08 })
+      for (let i = 0; i < 18; i++) this.w.vfx.add.spawn({ x: this.pos.x + rand(-0.3, 0.3), y: 0.6 + this.hitHeight + rand(0, 0.9), z: this.pos.z + rand(-0.3, 0.3), vx: rand(-3, 3), vy: rand(0.5, 3), vz: rand(-3, 3), r: c.r, g: c.g, b: c.b, size: 0.06, life: 0.5, drag: 2 })
+    }
+    if (n === 0) return 0
+    this.w.sound('hit_heavy', this.pos, { indicate: false, vol: 0.6 })
+    this.hp -= 12 * n
+    this.addPosture(20 * n)
+    this.rig.hitFlash()
+    if (this.hp <= 0) this.die()
+    else if (this.posture >= this.maxPosture && this.state !== 'stagger') this.enterStagger()
+    return n
+  }
+
+  /** Kara's claws: the wind-up breaks (an unblockable one too) */
+  eagleStrike() {
+    this.stun(this.weight === 'heavy' ? 0.8 : 1.4)
+  }
+
+  /** an arrow reached it: return true if it is taken in a special way (no ordinary hit) */
+  onArrow(_fromX: number, _fromZ: number) {
+    return false
+  }
+
+  /** the arrow breaks on it for good (the ancestors' armour not yet broken by the kurai, docs/COMBAT.md) */
+  arrowBreaks() {
+    return false
+  }
+
+  /** the kalkan's boss met the blow: off balance for 1.5 s (docs/COMBAT.md) */
+  parried() {
+    if (!this.alive) return
+    this.addPosture(this.weight === 'heavy' ? 25 : 35)
+    if (this.posture >= this.maxPosture) this.enterStagger()
+    else this.stun(this.weight === 'heavy' ? 1.1 : 1.5)
+  }
+
+  /** the vessel's flash: knocked back from the sparks (wolves run, see Wolf) */
+  scare(fromX: number, fromZ: number) {
+    if (!this.alive || this.state === 'dormant') return
+    this.knock(fromX, fromZ, this.weight === 'heavy' ? 1 : 5)
+    if (this.weight !== 'heavy') this.stun(0.5)
+  }
 
   constructor(w: World, x: number, z: number) {
     super(w)
@@ -136,8 +230,8 @@ export abstract class Enemy extends Actor {
     }
     const d = this.distToPlayer
     if (!this.aggro) {
-      const lit = p.torchOn && p.torchDoused <= 0
-      const range = this.detect * (lit ? 1.65 : 1)
+      // the glow at Aldar's belt is seen from afar
+      const range = this.detect * (p.lightOn ? 1.35 : 1)
       if (d < range && this.w.field.los(this.pos.x, this.pos.z, p.pos.x, p.pos.z)) this.becomeAggro(true)
     } else if (d > 30) {
       this.lostT += 0.15
@@ -158,6 +252,15 @@ export abstract class Enemy extends Actor {
     this.setState('attack')
     this.faceTo(this.w.player.pos.x, this.w.player.pos.z, 1)
     if (a.sound) this.emit(a.sound, 'threat', 0.85)
+    if (a.range > 0) this.glint(a.grab || a.unblockable ? GLINT_RED : GLINT_AMBER)
+  }
+
+  /** a flash at the head before a blow: amber — meet it with the kalkan, red — only a roll or Kara */
+  protected glint(c: THREE.Color) {
+    if (!this.visibleNow) return
+    const y = 1.55 + this.hitHeight + this.airY
+    for (let i = 0; i < 3; i++) this.w.vfx.add.spawn({ x: this.pos.x, y, z: this.pos.z, r: c.r, g: c.g, b: c.b, a: 1, size: 0.34 - i * 0.08, life: 0.32, drag: 1 })
+    for (let i = 0; i < 6; i++) this.w.vfx.add.spawn({ x: this.pos.x, y, z: this.pos.z, vx: rand(-1.5, 1.5), vy: rand(-0.5, 1.5), vz: rand(-1.5, 1.5), r: c.r, g: c.g, b: c.b, size: 0.05, life: 0.3, drag: 2 })
   }
 
   faceTo(x: number, z: number, k: number, dt = 1) {
@@ -186,11 +289,15 @@ export abstract class Enemy extends Actor {
     if (n >= a.hitStart && n <= a.hitEnd && !this.atkHit && a.range > 0) {
       if (inArc(this.pos.x, this.pos.z, this.facing, p.pos.x, p.pos.z, a.range, a.arc, p.radius) && Math.abs(p.airY - this.airY) < 1.6) {
         this.atkHit = true
-        const r = p.takeHit({ dmg: a.dmg, x: this.pos.x, z: this.pos.z, knock: a.knock, heavy: a.heavy, grab: a.grab })
+        const r = p.takeHit({ dmg: a.dmg, x: this.pos.x, z: this.pos.z, knock: a.knock, heavy: a.heavy, grab: a.grab, unblockable: a.unblockable })
         if (r === 'perfect') {
           this.addPosture(this.weight === 'heavy' ? 30 : 40)
           this.w.perfectDodge()
           if (this.posture >= this.maxPosture) this.enterStagger()
+        } else if (r === 'parry') {
+          this.atk = null
+          this.parried()
+          return
         } else if (r === 'hit') this.onHitPlayer(a)
       }
     }
@@ -226,8 +333,13 @@ export abstract class Enemy extends Actor {
   }
 
   takeHit(dmg: number, posture: number, fromX: number, fromZ: number, knock: number, heavy: boolean, source: 'melee' | 'arrow' | 'eagle' | 'fire'): boolean {
-    if (!this.alive || this.hidden || this.state === 'finished' || this.state === 'dormant') return false
-    const m = this.damageMult(source)
+    if (!this.alive || this.hidden || this.cloakedNow || this.state === 'finished' || this.state === 'dormant') return false
+    let m = this.damageMult(source)
+    // Susar's rusty mark: the first blow of kylys, kalkan or arrow lands 25% harder
+    if (this.marks.red > 0 && source !== 'eagle') {
+      m *= 1.25
+      this.marks.red = 0
+    }
     this.hp -= dmg * m
     this.addPosture(posture * m)
     this.rig.hitFlash()
@@ -275,19 +387,6 @@ export abstract class Enemy extends Actor {
     this.rig.hitFlash()
     if (this.hp <= 0) this.die()
     else this.setState('hurt')
-  }
-
-  lassoed(p: Player) {
-    if (this.weight === 'heavy') {
-      this.addPosture(22)
-      return
-    }
-    if (this.state === 'attack') this.onAttackEnd()
-    this.atk = null
-    this.pullBy = p
-    this.addPosture(30)
-    this.becomeAggro(false)
-    this.setState('pulled')
   }
 
   stun(sec: number) {
@@ -367,6 +466,8 @@ export abstract class Enemy extends Actor {
 
     this.atkCd -= dt
     this.revealT -= dt
+    this.exposedT = Math.max(0, this.exposedT - dt)
+    for (const k of Object.keys(this.marks) as MarkKind[]) this.marks[k] = Math.max(0, this.marks[k] - dt)
     if (this.burnT > 0) {
       this.burnT -= dt
       this.hp -= 7 * this.damageMult('fire') * dt
@@ -443,26 +544,6 @@ export abstract class Enemy extends Actor {
         ct = 1
         if (this.st > 2) this.setState('chase')
         break
-      case 'pulled': {
-        clip = this.clips.hurt
-        ct = 0.15
-        const pb = this.pullBy
-        if (!pb) {
-          this.setState('chase')
-          break
-        }
-        const dx = pb.pos.x - this.pos.x
-        const dz = pb.pos.z - this.pos.z
-        const d = Math.hypot(dx, dz)
-        if (d < this.radius + pb.radius + 1.0 || this.st > 0.45) {
-          this.pullBy = null
-          this.stun(0.9)
-          break
-        }
-        this.facing = Math.atan2(dx, dz)
-        this.desire.set((dx / d) * 20, 0, (dz / d) * 20)
-        break
-      }
       case 'special': {
         const r = this.specialUpdate(dt)
         clip = r.clip
@@ -529,7 +610,6 @@ export abstract class Enemy extends Actor {
       case 'attack':
         return this.weight === 'heavy' ? 1.7 : 2.1
       case 'hurt':
-      case 'pulled':
         return 2.7
       case 'stagger':
       case 'finished':
@@ -543,10 +623,10 @@ export abstract class Enemy extends Actor {
 
   protected updateVisibility(dt: number) {
     const w = this.w
-    const sees = !this.hidden && !this.forceHidden && w.vision.sees(this.pos.x, this.pos.z)
+    const sees = !this.hidden && !this.forceHidden && !this.cloakedNow && w.vision.sees(this.pos.x, this.pos.z)
     this.visibleNow = sees
     this.seen += ((sees ? 1 : 0) - this.seen) * (1 - Math.exp(-(sees ? 14 : 5) * dt))
-    const reveal = this.revealT > 0 && !this.hidden && !this.removed
+    const reveal = this.revealT > 0 && !this.hidden && !this.removed && !this.cloakedNow
     this.rig.root.visible = !this.removed && (this.seen > 0.05 || reveal)
     const ghost = reveal && !sees
     if (ghost !== this.lastReveal) {
@@ -720,7 +800,7 @@ export class Wolf extends Enemy {
     this.stepStrength = 0.4
     this.hitHeight = -0.35
     this.stagDur = 2.0
-    this.name = 'Волк-тень'
+    this.name = 'Лесной волк'
     this.bloodColor = new THREE.Color(0.03, 0.03, 0.05)
   }
   protected think(dt: number) {
@@ -765,7 +845,18 @@ export class Wolf extends Enemy {
     this.retreatT = 0.6
     this.atkCd = rand(2.2, 3.6)
   }
-  protected canFlinch() {
+  /** the vessel's sparks: wolves bolt from the fire (docs/COMBAT.md, «Вспышка живицы») */
+  scare(fromX: number, fromZ: number) {
+    if (!this.alive) return
+    if (this.state === 'attack') this.onAttackEnd()
+    this.atk = null
+    this.knock(fromX, fromZ, 4)
+    this.retreatT = 2
+    this.becomeAggro(false)
+    if (this.state !== 'stagger') this.setState('chase')
+    this.emit('wolf_hurt', 'threat', 0.5, 0.7)
+  }
+  protected override canFlinch(_heavy?: boolean) {
     return true
   }
   protected voice() {
@@ -778,7 +869,7 @@ export class Wolf extends Enemy {
     this.emit('wolf_hurt', 'threat', 0.6, 0.85)
   }
   protected rigFear() {
-    return this.alive && (this.state === 'hurt' || this.state === 'stagger' || this.state === 'stun' || this.state === 'pulled' || this.state === 'finished') ? 1 : 0
+    return this.alive && (this.state === 'hurt' || this.state === 'stagger' || this.state === 'stun' || this.state === 'finished' || this.retreatT > 0) ? 1 : 0
   }
   update(dt: number) {
     super.update(dt)
@@ -787,14 +878,104 @@ export class Wolf extends Enemy {
   }
 }
 
-// ======================================================================= ALBASTY
+// ======================================================================= PACK LEADER
+
+/**
+ * Zone 7 (docs/LEVELS.md): the leader keeps to the dark on a high stone ledge and howls up reinforcements for the pack.
+ * Out of the kylys's reach: an arrow (or Kara) brings him down.
+ */
+export class WolfLeader extends Wolf {
+  private howlT = 2.5
+  private called: Wolf[] = []
+  constructor(w: World, x: number, z: number) {
+    super(w, x, z)
+    this.ledge = true
+    this.hp = this.maxHp = 75
+    this.maxPosture = 50
+    this.detect = 18
+    this.radius = 0.65
+    this.name = 'Вожак стаи'
+    this.airY = 1.55
+    this.rig.root.scale.setScalar(1.38)
+  }
+  protected override canFlinch(heavy = false) {
+    return heavy
+  }
+  protected override rigFear(): 0 | 1 {
+    return 0
+  }
+  protected onDamaged() {
+    this.emit(Math.random() < 0.5 ? 'wolf_bark' : 'wolf_growl', 'threat', 0.8, 1.1)
+  }
+  protected onAlert() {
+    this.emit('wolf_howl', 'threat', 1.0)
+    this.howlT = 1.0
+  }
+  protected think(dt: number) {
+    const p = this.w.player
+    this.faceTo(p.pos.x, p.pos.z, 4, dt)
+    this.desire.set(0, 0, 0)
+    this.howlT -= dt
+    this.called = this.called.filter((e) => e.alive)
+    if (this.howlT <= 0) {
+      this.howlT = rand(6, 9)
+      this.emit('wolf_howl', 'threat', 1)
+      this.w.vfx.rings.spawn(this.pos.x, this.pos.z, { from: 0.5, to: 4.5, dur: 0.9, color: new THREE.Color(0.8, 0.25, 0.1), width: 0.08 })
+      if (this.called.length < 3) {
+        // a wolf answers out of the dark at the far end of the ravine
+        const a = Math.atan2(this.pos.x - p.pos.x, this.pos.z - p.pos.z) + rand(-0.8, 0.8)
+        for (let i = 0; i < 6; i++) {
+          const r = rand(7, 11)
+          const x = this.pos.x + Math.sin(a + i) * r
+          const z = this.pos.z + Math.cos(a + i) * r
+          if (this.w.field.clearance(x, z) > 0.8 && !this.w.vision.sees(x, z)) {
+            const spawned = this.w.spawnEnemy('wolf', x, z, true) as Wolf
+            if (spawned) this.called.push(spawned)
+            break
+          }
+        }
+      }
+    }
+  }
+  update(dt: number) {
+    super.update(dt)
+    if (this.alive) this.airY = 1.55
+    // he stays on his stone: no knockback carries him off
+    this.pos.x = this.home.x
+    this.pos.z = this.home.z
+  }
+  scare() {}
+  stun(sec: number) {
+    super.stun(Math.min(sec, 1))
+  }
+  resetToHome() {
+    super.resetToHome()
+    this.airY = 1.55
+    this.rig.root.scale.setScalar(1.38)
+  }
+  die() {
+    super.die()
+    // with the pack leader fallen, the wolves lose heart and scatter into the dark
+    for (const w of this.w.enemies) {
+      if (w.kind === 'wolf' && w !== this && w.alive) {
+        w.scare(this.pos.x, this.pos.z)
+      }
+    }
+  }
+}
+
+// ======================================================================= MOROK
 
 const ALB_CAST: AttackDef = { dur: 1.45, hitStart: 0.62, hitEnd: 0.63, range: 0, arc: 0, dmg: 0, knock: 0, cd: 2.6, phases: [['cast', 0, 1]], sound: 'cast' }
 const ALB_CLAW: AttackDef = { dur: 1.0, hitStart: 0.42, hitEnd: 0.55, range: 2.1, arc: 100, dmg: 12, knock: 4, lunge: 0.6, lungeStart: 0.4, lungeEnd: 0.52, cd: 1.2, phases: [['claw', 0, 1]], swing: 'swing', slash: { dir: 1, tilt: 0.2, color: new THREE.Color(0.8, 0.3, 1.4) } }
 
-export class Albasty extends Enemy {
-  kind = 'albasty' as const
-  clips = ALBASTY_CLIPS
+/**
+ * A phantom of the thicket (docs/LEVELS.md, zones 9–10): invisible and untouchable until Susar tears its veil.
+ * It slips away from the light, throws cold lights from afar and claws close by.
+ */
+export class Morok extends Enemy {
+  kind = 'morok' as const
+  clips = MOROK_CLIPS
   rig: Rig
   private handGlow: THREE.MeshBasicMaterial
   private teleCd = 2
@@ -805,7 +986,7 @@ export class Albasty extends Enemy {
   private lurking = false
   constructor(w: World, x: number, z: number, lurk = false) {
     super(w, x, z)
-    const m = createAlbasty()
+    const m = createMorok()
     this.rig = m.rig
     this.handGlow = m.handGlow
     w.scene.add(this.rig.root)
@@ -822,7 +1003,8 @@ export class Albasty extends Enemy {
     this.detect = 11
     this.radius = 0.42
     this.stepEvery = 9999
-    this.name = 'Албасты'
+    this.cloaked = true
+    this.name = 'Морок'
     this.bloodColor = new THREE.Color(0.25, 0.1, 0.35)
   }
   damageMult(source: string) {
@@ -834,8 +1016,9 @@ export class Albasty extends Enemy {
     const p = this.w.player
     const d = this.distToPlayer
     this.teleCd -= dt
-    const lantern = p.torchOn && p.torchDoused <= 0 && d < 5.5
-    if (this.teleCd <= 0 && (d < 3.2 || lantern)) {
+    // the coal's glow close by drives it off
+    const glow = p.lightOn && d < 4
+    if (this.teleCd <= 0 && (d < 3.2 || glow)) {
       this.startTeleport()
       return
     }
@@ -920,7 +1103,7 @@ export class Albasty extends Enemy {
       s.setScalar(0.01)
       if (this.lurking) {
         if (this.distToPlayer > 11 || !this.w.player.alive) return { clip: this.clips.cast, t: 0.3 }
-        // first appearance: close, and outside Timer's gaze
+        // first appearance: close, and outside Aldar's gaze
         this.lurking = false
         this.teleTarget.copy(this.pickSpot(5.5, 8))
         this.st = 0.55

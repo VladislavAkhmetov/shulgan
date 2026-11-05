@@ -3,12 +3,12 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { Humanoid } from './rig'
 
 /**
- * Timer's Mixamo body. Three layers, bottom to top:
+ * Aldar's Mixamo body. Three layers, bottom to top:
  *  1. clips in the mixer: idle, idle_combat, run, roll; the blows, the charge and death are scrubbed by the game's
  *     own timing (the clip's strike lands inside the game's hit window, see BLOWS);
  *  2. procedural poses for states without a clip, retargeted onto the Mixamo bones (world-space deltas from a shared
  *     reference pose);
- *  3. an upper-body layer for the bow and the block, so Timer aims and guards while his legs walk.
+ *  3. an upper-body layer for the bow and the block, so Aldar aims and guards while his legs walk.
  * The procedural rig still runs underneath: logic, hands for the lasso and eagle, springs.
  */
 
@@ -49,6 +49,10 @@ const BLOWS: Record<string, Blow> = {
   obr: ['atk_obr', 0.5, 0.8, 0.95, 1.12],
   ukol: ['atk_ukol', 0.25, 0.55, 0.72, 0.86],
   vypad: ['atk_ukol', 0.33, 0.55, 0.72, 0.86],
+  // Ответное рассечение: the backhand, faster
+  counter: ['atk_obr', 0.5, 0.8, 0.95, 1.12],
+  // Удар щитом: the shoving thrust until the Shield Bash clip arrives (docs/EQUIPMENT.md)
+  bash: ['atk_ukol', 0.3, 0.55, 0.72, 0.86],
   // the clip turns the whole body a full circle itself (the code's spin is off while it plays)
   polu: ['atk_polu', 0.45, 0.87, 1.25, 1.5],
   // the wind-up was the charge (CHARGE_*): the blow starts overhead
@@ -73,20 +77,23 @@ const BLOCK_T = 0.5
  */
 const TIMED: Record<string, { clip: string; keys: [number, number][] }> = {
   hurt: { clip: 'hit', keys: [[0, 0.1], [0.38, 0.85]] },
-  lasso: { clip: 'throw', keys: [[0, 0.45], [0.17, 0.87], [0.5, 1.2], [1.6, 1.6]] },
+  // Kara leaves the glove (Standing Torch Light in docs/EQUIPMENT.md; the throw until then)
+  eagle: { clip: 'throw', keys: [[0, 0.45], [0.15, 0.87], [0.35, 1.2]] },
+  // «Вспышка живицы»: a short sweep of the hand toward the belt
+  flash: { clip: 'throw', keys: [[0, 0.5], [0.12, 0.85], [0.3, 1.1]] },
   interact: { clip: 'pickup', keys: [[0, 0.35], [0.36, 0.98], [0.9, 1.85]] },
   finisher: { clip: 'finisher', keys: [[0, 0.1], [0.6, 0.85], [1.0, 1.45]] },
 }
-/** a sip (drink lasts 0.95 s, the heal comes at 0.45): the hand reaches the mouth around 2.0 s of the clip */
+/** «Перевести дух» lasts 0.8 s: the drink clip's hand-to-chest stretch */
 const DRINK_FROM = 1.0
 const DRINK_TO = 2.85
-const DRINK_DUR = 0.95
+const DRINK_DUR = 0.8
 /** stance walk (Shift): four directions blended by the step; metres per walk cycle at the game's pace */
 const STANCE_CYCLE = 1.7
 const STANCE_CLIPS = ['stance_fwd', 'stance_back', 'stance_left', 'stance_right'] as const
 /**
  * The side steps turn the chest toward the step (left +38°, right −37°, measured on the shoulders). The spine turns
- * it back to where the forward step faces (−20°), so Timer keeps facing the enemy whichever way he steps.
+ * it back to where the forward step faces (−20°), so Aldar keeps facing the enemy whichever way he steps.
  */
 const TORSO_TARGET = -20
 const TORSO: Record<string, number> = { stance_left: 38, stance_right: -37 }
@@ -122,7 +129,7 @@ export interface AnimInput {
   /** danger near or a blow just struck: the combat stance replaces the calm idle */
   combat: boolean
   weapon: 'blade' | 'bow'
-  /** step direction against the facing: forward (+1 ahead) and side (+1 to Timer's left) */
+  /** step direction against the facing: forward (+1 ahead) and side (+1 to Aldar's left) */
   side: number
   /** holding the guard: Shift with the kylys and a shield (the block comes with the shield) */
   block: boolean
@@ -221,7 +228,7 @@ export class HeroAnimator {
     scene.position.y = -bb.min.y * k
     this.root.updateMatrixWorld(true)
 
-    // clips: no root motion (code moves Timer); the roll is cut to the roll itself. Death keeps its stagger and fall.
+    // clips: no root motion (code moves Aldar); the roll is cut to the roll itself. Death keeps its stagger and fall.
     this.mixer = new THREE.AnimationMixer(scene)
     for (const clip of gltf.animations) {
       for (const tr of clip.tracks) {
@@ -290,7 +297,7 @@ export class HeroAnimator {
     this.hipsBind.copy(this.bones.Hips.position)
 
     // props move onto the Mixamo bones, inside a holder that copies their procedural joint's frame
-    const jointToBone: Record<string, string> = { haR: 'RightHand', haL: 'LeftHand', chest: 'Spine2', hips: 'Hips', spine: 'Spine' }
+    const jointToBone: Record<string, string> = { haR: 'RightHand', haL: 'LeftHand', elL: 'LeftForeArm', elR: 'RightForeArm', chest: 'Spine2', hips: 'Hips', spine: 'Spine' }
     const jointNames = new Map(Object.entries(J).map(([n, o]) => [o as THREE.Object3D, n]))
     for (const prop of props) {
       let top: THREE.Object3D = prop
@@ -330,7 +337,7 @@ export class HeroAnimator {
       .map((n) => n.slice(7))
   }
 
-  /** Dress Timer: null = the base shirt. The head is always the base's; the base body hides under clothes. */
+  /** Dress Aldar: null = the base shirt. The head is always the base's; the base body hides under clothes. */
   setOutfit(name: string | null) {
     const has = !!name && !!this.parts['outfit_' + name]
     for (const [n, m] of Object.entries(this.parts)) {
@@ -359,7 +366,7 @@ export class HeroAnimator {
 
     // 1. a blow, the charge or death: one clip, scrubbed by the game's own clock
     let driven: [string, number] | null = null
-    const blow = s === 'attack' || s === 'slam' ? BLOWS[inp.action] : undefined
+    const blow = s === 'attack' || s === 'slam' || s === 'bash' ? BLOWS[inp.action] : undefined
     if (blow && this.act[blow[0]]) driven = [blow[0], warp(inp.n, inp.hit, blow)]
     else if (s === 'charge' && this.act.atk_heavy) driven = ['atk_heavy', CHARGE_FROM + (CHARGE_TO - CHARGE_FROM) * inp.charge]
     else if (TIMED[s] && this.act[TIMED[s].clip]) driven = [TIMED[s].clip, keyed(inp.st, TIMED[s].keys)]
@@ -396,15 +403,16 @@ export class HeroAnimator {
         // the arms settle back into the walk over the last third
         overTarget = THREE.MathUtils.clamp((dur - t) / (dur * 0.35), 0, 1)
       }
-    } else if (s === 'drink') {
+    } else if (s === 'breath') {
+      // «Перевести дух»: a hand to the chest, as the sip used to be
       over = ['drink', DRINK_FROM + (DRINK_TO - DRINK_FROM) * Math.min(1, inp.st / DRINK_DUR)]
     } else if (s === 'move' && inp.block) over = ['block', BLOCK_T]
     if (over && !this.upperPoses[over[0]]) over = null
 
     // which source drives the legs and hips
-    const walking = s === 'move' || s === 'bow' || s === 'drink'
+    const walking = s === 'move' || s === 'bow' || s === 'breath'
     // the stance walk: Shift, drawing the bow, a sip on the move
-    const stanceWalk = (inp.stance || s === 'bow' || s === 'drink') && !!this.act.stance_fwd
+    const stanceWalk = (inp.stance || s === 'bow' || s === 'breath') && !!this.act.stance_fwd
     // without the stance clips the side and back steps stay procedural
     const strafing = !this.act.stance_fwd && (inp.stance || s === 'bow') && inp.speed > 0.3 && inp.forward < 0.5
     const useClips = !!driven || (rolling ? s === 'dodge' || s === 'move' : walking && !strafing)

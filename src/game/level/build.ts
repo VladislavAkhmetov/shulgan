@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Batcher, blob, displace, ensureUv, limb, merge, paint, prep, solid, type RGB } from './geo'
-import { Halos, PINES, addStoryProp, placeDetails, registerDressing } from './dressing'
+import { Halos, type Halo, PINES, addStoryProp, placeDetails, registerDressing } from './dressing'
 import { CELL, type LevelData, type Marker } from './map'
 import type { ClueId } from '../clues'
 import type { Circle, Field } from './field'
@@ -10,6 +10,9 @@ import { barkTexture, birchTexture, glow, groundTexture, needleTexture, ornament
 import type { Lighting, LightSource } from '../render/lights'
 import { makeFlame, type VFX } from '../render/vfx'
 import { buildStream, type Stream } from './water'
+import { buildLake, groundAt, groundCtx, placeBiomeGround, placeBiomeWalls, registerBiome, type BiomeOpts, type Lake } from './biome'
+import { bridgeMesh, buildExtras, emptyExtras, veilMesh, type Extras } from './extras'
+import type { Biome } from '../chapters'
 
 
 // ---------------------------------------------------------------- vegetation & props
@@ -259,12 +262,19 @@ export interface Spring {
   water: THREE.ShaderMaterial
 }
 
+/** A drop of living water on a split black boulder (docs/ASSETS.md 2.4), TRG_WATER_DROP_01..05. */
 export interface Drop {
+  /** its number in the game, 1..5 (chapter 1 has the first two) */
+  n: number
   pos: THREE.Vector3
   group: THREE.Group
   orb: THREE.Mesh
   light: LightSource
+  /** young shoots and white kurai flowers, shown once the drop is given to the earth */
+  sprouts: THREE.Group
   taken: boolean
+  /** the dead grove around it, if any, comes alive when it is given */
+  grove: Grove | null
 }
 
 export interface Grove {
@@ -284,9 +294,12 @@ export interface Gate {
   center: THREE.Vector3
 }
 
-/** Thorns that burn, or a deadfall that can be pushed from one side (docs/LEVEL.md). */
+/**
+ * Thorns that burn, or a deadfall that can be pushed from one side (chapter 1); the spirits' veil across the alley of
+ * balbals and the raised drawbridge of the flooded sanctuary (chapter 2).
+ */
 export interface Barrier {
-  kind: 'thorns' | 'deadfall'
+  kind: 'thorns' | 'deadfall' | 'veil' | 'bridge'
   cells: number[]
   circles: Circle[]
   mesh: THREE.Group
@@ -297,7 +310,7 @@ export interface Barrier {
   center: THREE.Vector3
 }
 
-export type EmitterKind = 'embers' | 'smoke' | 'motes' | 'fireflies' | 'sparkle' | 'spores'
+export type EmitterKind = 'embers' | 'smoke' | 'motes' | 'fireflies' | 'sparkle' | 'spores' | 'spirit' | 'snow'
 
 export interface Emitter {
   pos: THREE.Vector3
@@ -308,13 +321,50 @@ export interface Emitter {
   active: () => boolean
 }
 
+/** the flooded yurt's hearth: the last coal under the overturned cauldron, the kalkan and the bow on the wall lattice */
+export interface Hearth {
+  pos: THREE.Vector3
+  /** the threshold, where a scrap of rusty fur lies */
+  door: THREE.Vector3
+  /** the tiny living coal (hidden once taken) */
+  coal: THREE.Object3D
+  /** the gear on the wall (hidden once taken) */
+  gear: THREE.Object3D
+  light: LightSource
+}
+
+/** a cold fire pit: the flame comes from the vessel's coal (docs/ROADMAP.md, «Решения реализации») */
+export interface ColdFire {
+  pos: THREE.Vector3
+  lit: boolean
+  flame: THREE.Object3D
+  coal: THREE.Mesh
+  light: LightSource
+}
+
+/** the raven's nest on a bough over the path (zone 3): an arrow brings it down */
+export interface Nest {
+  pos: THREE.Vector3
+  mesh: THREE.Object3D
+  fallen: boolean
+  t: number
+}
+
+/** Aldar's bow and quiver lost by Azamat at the stream (TRG_CH1_BOW_STREAM) */
+export interface DroppedBow {
+  pos: THREE.Vector3
+  mesh: THREE.Group
+  light: LightSource
+  halo: Halo
+  taken: boolean
+}
+
 export interface LevelBuild {
   root: THREE.Group
   start: THREE.Vector3
   braziers: Brazier[]
   spring: Spring | null
-  drop: Drop | null
-  grove: Grove | null
+  drops: Drop[]
   gate: Gate | null
   emitters: Emitter[]
   triggers: { id: string; pos: THREE.Vector3; fired: boolean }[]
@@ -325,24 +375,53 @@ export interface LevelBuild {
   halos: Halos
   /** readable clan stones: id = lore page */
   tamgas: { pos: THREE.Vector3; id: number; read: boolean }[]
-  /** where each sign of the abductors lies (docs/TRACKING.md) */
+  /** where each sign of the abductors lies (src/game/clues.ts) */
   clues: Partial<Record<ClueId, THREE.Vector3>>
-  /** footprint materials: the tracker's sense makes them glow */
-  trackMats: THREE.MeshStandardMaterial[]
-  /** the hunter's trap that holds the marten */
+  /** footprints show only in the heat focus: x, z of the vessel, the gaze angle, strength 0..1 */
+  trackFocus: { value: THREE.Vector4 }
+  /** the rusty trap that holds Susar */
   trap: { pos: THREE.Vector3; open: () => void } | null
   barriers: Barrier[]
-  /** the hollow tree where Azamat cries (a sound landmark) */
+  /** the great oak's hollow, 5.5 m up, where Azamat hides (a sound landmark) */
   hollow: THREE.Vector3 | null
+  /** the oak's foot: Shurale waits in its crown */
+  oak: THREE.Vector3 | null
+  /** pines at the edge of the glade where Shurale hides in phase 2 */
+  perches: THREE.Vector3[]
+  hearth: Hearth | null
+  nest: Nest | null
+  droppedBow: DroppedBow | null
+  /** arrows standing in trunks and targets: pulled out on approach */
+  stuckArrows: { pos: THREE.Vector3; dir: THREE.Vector3 }[]
+  /** stones an arrow breaks on */
+  stones: Circle[]
+  /** the hunters' cold fire pits: lit from the vessel, they become a rest */
+  coldFires: ColdFire[]
+  /** threads of blue wool Azamat tied on twigs for his father */
+  threads: THREE.Vector3[]
   /** centres of shallow-water cells (babble near the banks) */
   waterSpots: THREE.Vector3[]
   /** the mountain stream surface (docs/ART.md, "Вода"); the game feeds it the moon and the waders */
   stream: Stream | null
+  biome: Biome
+  /** the deep black water of chapters 2–3 */
+  lake: Lake | null
+  /** the places and things of chapters 2–3 (level/extras.ts) */
+  extras: Extras
+}
+
+export interface BuildOpts extends Partial<BiomeOpts> {
+  /** the first lore page of this chapter's stones */
+  loreBase?: number
 }
 
 const springVert = /* glsl */ `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`
 
-export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, lights: Lighting, vfx: VFX): LevelBuild {
+export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, lights: Lighting, vfx: VFX, opts: BuildOpts = {}): LevelBuild {
+  const biome: Biome = opts.biome ?? 'urman'
+  const bo: BiomeOpts = { biome, summitRow: opts.summitRow, abyssRow: opts.abyssRow, clay: opts.clay, forestRow: opts.forestRow }
+  const gctx = groundCtx(bo, level)
+  const urman = biome === 'urman'
   const root = new THREE.Group()
   root.name = 'level'
   scene.add(root)
@@ -397,6 +476,14 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
       const deep: RGB = [0.026, 0.03, 0.022]
       // the stream bed: washed gravel, a little lower than the banks (the water tints it)
       const wm = bedAt(x, z)
+      if (!urman) {
+        const gs = groundAt(gctx, x, z, sd, wm)
+        col[i * 3] = gs.c[0]
+        col[i * 3 + 1] = gs.c[1]
+        col[i * 3 + 2] = gs.c[2]
+        pos.setY(i, gs.y)
+        continue
+      }
       let c: RGB
       if (sd > 0) {
         const k = smoothstep(0.2, 2.6, sd + (n - 0.5) * 1.8)
@@ -437,6 +524,8 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
       }
   const stream = buildStream({ cells: waterCells, cell: CELL, bedAt, level: -0.07 })
   if (stream) root.add(stream.mesh)
+  const lake = urman ? null : buildLake(level, bo, moonLevel, lights.moonOffset)
+  if (lake) root.add(lake.mesh)
 
   // ---------- register instanced types
   const SPRUCE = ['spruce0', 'spruce1', 'spruce2']
@@ -479,11 +568,35 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
       }
     }
   registerDressing(batch, vegMat, rockMat)
+  const biomeKit = urman ? null : registerBiome(batch, bo)
   const halos = new Halos(root)
 
   const markersOf = (ch: string) => level.markers.filter((m) => m.ch === ch)
-  const dropMarker = markersOf('D')[0]
-  const groveCenter = dropMarker ? new THREE.Vector3(dropMarker.x, 0, dropMarker.z) : null
+  // the dead grove belongs to the drop nearest the white birches (drop 1)
+  const birchMarks = markersOf('x')
+  let groveCenter: THREE.Vector3 | null = null
+  if (birchMarks.length) {
+    const cx = birchMarks.reduce((a, m) => a + m.x, 0) / birchMarks.length
+    const cz = birchMarks.reduce((a, m) => a + m.z, 0) / birchMarks.length
+    let bd = 1e9
+    for (const d of markersOf('D')) {
+      const dd = Math.hypot(d.x - cx, d.z - cz)
+      if (dd < bd) {
+        bd = dd
+        groveCenter = new THREE.Vector3(d.x, 0, d.z)
+      }
+    }
+  }
+  /** the direction from (x, z) toward the nearest wall of the forest, and how far it is */
+  const wallDir = (x: number, z: number) => {
+    const e = 0.4
+    const gx = field.sample(x + e, z) - field.sample(x - e, z)
+    const gz = field.sample(x, z + e) - field.sample(x, z - e)
+    const l = Math.hypot(gx, gz) || 1
+    return { dir: new THREE.Vector3(-gx / l, 0, -gz / l), dist: Math.max(0.3, field.sample(x, z)) }
+  }
+  const stones: Circle[] = []
+  const stuckArrows: LevelBuild['stuckArrows'] = []
 
   // ---------- forest placement (poisson-ish via jittered grid + spacing hash)
   const occupied = new Map<number, { x: number; z: number; r: number }[]>()
@@ -513,6 +626,9 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
       const pz = z + rng() * step
       const sd = field.sample(px, pz)
       if (sd > -0.25 || sd < -7) continue
+      // outside the urman only the edge of the forest the steppe begins from has trees
+      if (!urman && !(bo.forestRow !== undefined && pz / CELL >= bo.forestRow)) continue
+      if (!urman && gctx.deepAt(px, pz) > 0.05) continue
       const edge = sd > -2.6
       if (rng() > (edge ? 0.95 : 0.4)) continue
       const spacing = edge ? 0.8 : 1.3
@@ -540,8 +656,12 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     }
   }
 
+  if (!urman) {
+    placeBiomeWalls(batch, field, level, bo, gctx, rng)
+    placeBiomeGround(batch, field, level, bo, gctx, waterAt, rng)
+  }
   // ---------- undergrowth along the edges and scattered debris
-  for (let z = 0; z < level.depth; z += 0.9) {
+  for (let z = 0; urman && z < level.depth; z += 0.9) {
     for (let x = 0; x < level.width; x += 0.9) {
       const px = x + rng() * 0.9
       const pz = z + rng() * 0.9
@@ -555,7 +675,9 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
         if (wv < 0.6 && r < 0.45) batch.add('grass', px, 0, pz, rot, 1.1 + rng() * 0.6, 1.6 + rng() * 1.4, 1.1 + rng() * 0.6)
         continue
       }
-      if (sd < 1.4 && r < 0.22) batch.add(rng() < 0.5 ? 'fern0' : 'fern1', px, 0, pz, rot, 0.8 + rng() * 0.8)
+      // zone 2, «Кромка папоротников»: the ferns stand thick along the trail
+      const fernEdge = pz > 104 * CELL && pz < 110 * CELL
+      if (sd < (fernEdge ? 2.6 : 1.4) && r < (fernEdge ? 0.55 : 0.22)) batch.add(rng() < 0.5 ? 'fern0' : 'fern1', px, 0, pz, rot, fernEdge ? 1.1 + rng() * 0.9 : 0.8 + rng() * 0.8)
       else if (sd < 0.4 && r < 0.27) batch.add('bush', px, 0, pz, rot, 0.7 + rng() * 0.8)
       else if (sd > 0 && r < 0.3) batch.add('grass', px, 0, pz, rot, 0.7 + rng() * 0.7)
       else if (sd > 0.5 && r < 0.315) batch.add(ROCK[Math.floor(rng() * 3)], px, -0.05, pz, rot, 0.12 + rng() * 0.18)
@@ -569,7 +691,7 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
   // ---------- litter, roots, branches, webs
   const triggers: LevelBuild['triggers'] = []
   const dctx = { root, batch, field, level, rng, veg: vegMat, plain: rockMat, triggers }
-  placeDetails(dctx)
+  if (urman) placeDetails(dctx)
 
   // ---------- markers
   const braziers: Brazier[] = []
@@ -578,7 +700,7 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
   const spawns: Marker[] = []
   let start = new THREE.Vector3(10, 0, 10)
   let spring: Spring | null = null
-  let drop: Drop | null = null
+  const drops: Drop[] = []
   let grove: Grove | null = null
   const gateCells: number[] = []
 
@@ -589,7 +711,8 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
   const ornMat = std(0xffffff, 0.8, { map: ornamentTexture() })
   const boneMat = std(0xb8b0a0, 0.7)
 
-  const addFire = (m: Marker) => {
+  const coldFires: ColdFire[] = []
+  const addFire = (m: Marker, lit = true) => {
     const g = new THREE.Group()
     g.position.set(m.x, 0, m.z)
     for (let i = 0; i < 9; i++) {
@@ -611,12 +734,58 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     g.add(fl)
     vfx.billboards.add(fl)
     root.add(g)
-    const light = lights.add({ pos: new THREE.Vector3(m.x, 1.2, m.z), color: new THREE.Color(1, 0.5, 0.2), intensity: 13, distance: 15, flicker: 1, on: true })
-    fires.push(light)
+    const light = lights.add({ pos: new THREE.Vector3(m.x, 1.2, m.z), color: new THREE.Color(1, 0.5, 0.2), intensity: 13, distance: 15, flicker: 1, on: lit })
     halos.add(new THREE.Vector3(m.x, 1.0, m.z), new THREE.Color(1, 0.5, 0.2), 6.5, 0.5, light)
-    emitters.push({ pos: new THREE.Vector3(m.x, 0.6, m.z), kind: 'embers', rate: 9, radius: 0.3, acc: 0, active: () => true })
-    emitters.push({ pos: new THREE.Vector3(m.x, 1.3, m.z), kind: 'smoke', rate: 3, radius: 0.2, acc: 0, active: () => true })
     field.addCircle({ x: m.x, z: m.z, r: 0.75, occludes: false })
+    if (lit) {
+      fires.push(light)
+      emitters.push({ pos: new THREE.Vector3(m.x, 0.6, m.z), kind: 'embers', rate: 9, radius: 0.3, acc: 0, active: () => true })
+      emitters.push({ pos: new THREE.Vector3(m.x, 1.3, m.z), kind: 'smoke', rate: 3, radius: 0.2, acc: 0, active: () => true })
+      return
+    }
+    // cold: grey ash, a few charred sticks, waiting for a coal
+    fl.visible = false
+    coal.visible = false
+    const cf: ColdFire = { pos: new THREE.Vector3(m.x, 0, m.z), lit: false, flame: fl, coal, light }
+    coldFires.push(cf)
+    emitters.push({ pos: new THREE.Vector3(m.x, 0.6, m.z), kind: 'embers', rate: 9, radius: 0.3, acc: 0, active: () => cf.lit })
+    emitters.push({ pos: new THREE.Vector3(m.x, 1.3, m.z), kind: 'smoke', rate: 3, radius: 0.2, acc: 0, active: () => cf.lit })
+  }
+
+  const threads: THREE.Vector3[] = []
+  const threadMat = std(0x2c5cb0, 0.7, { side: THREE.DoubleSide, emissive: 0x0c2248 })
+  /** a twig out of the thicket at a boy's height, a thread of his mother's blue wool tied round it */
+  const addThread = (m: Marker) => {
+    const w = wallDir(m.x, m.z)
+    const bx = m.x + w.dir.x * (w.dist + 0.1)
+    const bz = m.z + w.dir.z * (w.dist + 0.1)
+    const tip = new THREE.Vector3(m.x + w.dir.x * (w.dist - 0.7), 1.05, m.z + w.dir.z * (w.dist - 0.7))
+    root.add(new THREE.Mesh(limb(new THREE.Vector3(bx, 0.95, bz), tip, 0.025, 0.008, 4), deadMat))
+    const rib = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 0.32, 1, 3).translate(0, -0.16, 0), threadMat)
+    displace(rib.geometry, 0.02, 3, m.row)
+    rib.position.copy(tip).addScaledVector(w.dir, 0.12)
+    rib.rotation.set(0.15, Math.atan2(w.dir.x, w.dir.z) + Math.PI / 2, 0.1)
+    root.add(rib)
+    halos.add(tip.clone(), new THREE.Color(0.3, 0.5, 1), 0.5, 0.06, null)
+    threads.push(new THREE.Vector3(tip.x, 0, tip.z))
+  }
+
+  /** zone 8: dry thorn bushes round the old spring (they only look like the burnable ones) */
+  const addThornBush = (x: number, z: number, seed: number) => {
+    const parts: THREE.BufferGeometry[] = []
+    for (let i = 0; i < 16; i++) {
+      const a = new THREE.Vector3((rng() - 0.5) * 1.2, -0.05, (rng() - 0.5) * 1.2)
+      parts.push(limb(a, a.clone().add(new THREE.Vector3((rng() - 0.5) * 1.1, 0.5 + rng() * 0.9, (rng() - 0.5) * 1.1)), 0.035, 0.003, 3))
+    }
+    const geo = merge(parts)
+    paint(geo, (p) => {
+      const k = 0.7 + vnoise(p.x * 4 + seed, p.y * 4) * 0.5
+      return [0.12 * k, 0.075 * k, 0.05 * k]
+    })
+    const mesh = new THREE.Mesh(geo, std(0xffffff, 0.9, { vertexColors: true }))
+    mesh.position.set(x, 0, z)
+    mesh.castShadow = true
+    root.add(mesh)
   }
 
   const addBrazier = (m: Marker, lit: boolean, arena: boolean) => {
@@ -717,7 +886,20 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     const x = m.x + (rng() - 0.5) * 0.5
     const z = m.z + (rng() - 0.5) * 0.5
     batch.add('boulder', x, -0.15, z, rng() * 6, r, r * 1.1, r)
-    field.addCircle({ x, z, r: r * 0.92, occludes: true })
+    const c = { x, z, r: r * 0.92, occludes: true }
+    field.addCircle(c)
+    stones.push(c)
+  }
+
+  /** zone 7: a high flat-topped stone where the pack leader stands, out of the kylys's reach */
+  const addLedge = (m: Marker) => {
+    const r = 1.45
+    batch.add('boulder', m.x, -0.1, m.z, rng() * 6, r, 1.25, r)
+    batch.add('boulder', m.x + 0.9, -0.2, m.z - 0.6, rng() * 6, 0.8, 0.8, 0.8)
+    // waist-high: it stops the step, not the eye (the leader on top must be seen and shot)
+    const c = { x: m.x, z: m.z, r: r * 1.05, occludes: false }
+    field.addCircle(c)
+    stones.push(c)
   }
 
   const addBalbal = (m: Marker) => {
@@ -752,7 +934,9 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     g.position.set(m.x, 0, m.z)
     g.rotation.y = rng() * Math.PI * 2
     root.add(g)
-    field.addCircle({ x: m.x, z: m.z, r: 0.45, occludes: false })
+    const c = { x: m.x, z: m.z, r: 0.45, occludes: false }
+    field.addCircle(c)
+    stones.push(c)
     tamgas.push({ pos: new THREE.Vector3(m.x, 0, m.z), id: 0, read: false })
     halos.add(new THREE.Vector3(m.x, 0.9, m.z), new THREE.Color(0.9, 0.35, 0.15), 1.4, 0.12, null)
   }
@@ -840,12 +1024,44 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
   }
 
   const clues: Partial<Record<ClueId, THREE.Vector3>> = {}
-  const trackMats: THREE.MeshStandardMaterial[] = []
-  const cradleWood = std(0x6b4a2c, 0.85)
+  const trackFocus = { value: new THREE.Vector4(0, 0, 0, 0) }
+  /**
+   * Footprints in the mud: barely there, until the heat focus [F] sweeps over them (docs/LEVELS.md, zone 2).
+   * The cone test runs per fragment, so the prints light up exactly where the vessel's light falls.
+   */
+  const trackMaterial = (color: THREE.Color, base: number) =>
+    new THREE.ShaderMaterial({
+      uniforms: { uFocus: trackFocus, uColor: { value: color }, uBase: { value: base } },
+      vertexShader: /* glsl */ `varying vec3 vW;
+        void main(){
+          vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
+          vW = w.xyz;
+          gl_Position = projectionMatrix * viewMatrix * w;
+        }`,
+      fragmentShader: /* glsl */ `uniform vec4 uFocus; uniform vec3 uColor; uniform float uBase; varying vec3 vW;
+        void main(){
+          vec2 d = vW.xz - uFocus.xy;
+          float dist = length(d);
+          vec2 dir = vec2(sin(uFocus.z), cos(uFocus.z));
+          float along = dot(d, dir) / max(dist, 0.001);
+          float cone = smoothstep(0.82, 0.93, along) * smoothstep(12.5, 9.0, dist) * smoothstep(0.4, 1.2, dist) * uFocus.w;
+          vec3 heat = vec3(1.5, 0.75, 0.25);
+          vec3 col = mix(uColor, heat, cone * 0.7);
+          gl_FragColor = vec4(col, uBase + cone * 0.8);
+        }`,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+    })
+  const cradleWoodPlain = std(0x6b4a2c, 0.85)
+  const cradleWood = cradleWoodPlain
+  const frostWood = std(0xb8a888, 0.6, { emissive: 0x0c1418 })
 
-  /** a bishek: a rocking cradle with an embroidered blanket */
-  const makeCradle = () => {
+  /** a bishek: a rocking cradle with an embroidered blanket; `frost` — the empty one rimed with ice, a blue ribbon on its arch */
+  const makeCradle = (frost = false) => {
     const cradle = new THREE.Group()
+    const cradleWood = frost ? frostWood : cradleWoodPlain
     for (const side of [-1, 1]) {
       const runner = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.025, 4, 12, Math.PI * 0.55), cradleWood)
       runner.rotation.set(0, Math.PI / 2, Math.PI + Math.PI * 0.225)
@@ -867,6 +1083,11 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     blanket.rotation.x = -Math.PI / 2
     blanket.position.y = 0.16
     cradle.add(blanket)
+    if (frost) {
+      const rib = new THREE.Mesh(new THREE.PlaneGeometry(0.04, 0.32, 1, 3), std(0x2c5cb0, 0.7, { side: THREE.DoubleSide, emissive: 0x0a1a3a }))
+      rib.position.set(0, 0.5, 0.02)
+      cradle.add(rib)
+    }
     cradle.traverse((o) => ((o as THREE.Mesh).castShadow = true))
     return cradle
   }
@@ -899,6 +1120,14 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     g.position.set(m.x, 0, m.z)
     g.rotation.y = 0.4
     root.add(g)
+    // «Терновник у старого ключа»: the trap is set in a tangle of dry thorn
+    for (let i = 0; i < 3; i++) {
+      const a = 0.8 + i * 2.1 + rng() * 0.5
+      const r = 1.6 + rng() * 0.6
+      const x = m.x + Math.cos(a) * r
+      const z = m.z + Math.sin(a) * r
+      if (field.sample(x, z) > 0.3) addThornBush(x, z, i)
+    }
     trap = {
       pos: new THREE.Vector3(m.x, 0, m.z),
       open: () => {
@@ -915,110 +1144,204 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     return mesh
   }
 
-  /** The family's yurt, burned: the place the game begins (docs/STORY.md, chapter 1). */
-  const addFamilyYurt = (m: Marker) => {
+  let hearth: Hearth | null = null
+  const startM = level.markers.find((m) => m.ch === 'P')
+  /**
+   * The family's yurt, not burned but swallowed by icy swamp silt and dug through by the ubyrs (docs/STORY.md, «Завязка»;
+   * docs/ASSETS.md 2.1): white felt black with silt to two thirds, Aisylu's red embroidery under frost, the door torn off,
+   * two burrows under the felt. Inside: the hearth flooded with black water, the overturned cauldron with the last coal,
+   * the frosted cedar cradle, the kalkan and the bow on the wall lattice.
+   */
+  const addFloodedYurt = (m: Marker) => {
     const g = new THREE.Group()
-    const parts: THREE.BufferGeometry[] = []
     const R = 2.4
-    const n = 30
-    // the kerege lattice, burned down to stumps on one side
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2
-      const burnt = Math.sin(a * 1.3 + 0.7) > 0.1
-      if (burnt && rng() < 0.55) continue
-      const a2 = a + 0.4
-      const h = burnt ? 0.25 + rng() * 0.35 : 1.15 + (rng() - 0.5) * 0.2
-      parts.push(limb(new THREE.Vector3(Math.cos(a) * R, 0, Math.sin(a) * R), new THREE.Vector3(Math.cos(a2) * R, h, Math.sin(a2) * R), 0.03, 0.025, 4))
-      parts.push(limb(new THREE.Vector3(Math.cos(a2) * R, 0, Math.sin(a2) * R), new THREE.Vector3(Math.cos(a) * R, h, Math.sin(a) * R), 0.03, 0.025, 4))
-    }
-    // roof poles fallen inward
-    for (let i = 0; i < 9; i++) {
-      const a = rng() * Math.PI * 2
-      const b = new THREE.Vector3(Math.cos(a) * R, 0.2 + rng() * 0.9, Math.sin(a) * R)
-      const e = new THREE.Vector3(Math.cos(a) * 0.3 + (rng() - 0.5) * 1.2, 0.04, Math.sin(a) * 0.3 + (rng() - 0.5) * 1.2)
-      parts.push(limb(b, e, 0.04, 0.025, 4))
-    }
-    // the door frame still stands
-    parts.push(limb(new THREE.Vector3(-0.45, 0, R), new THREE.Vector3(-0.45, 1.5, R), 0.05, 0.05, 4))
-    parts.push(limb(new THREE.Vector3(0.45, 0, R), new THREE.Vector3(0.45, 1.5, R), 0.05, 0.05, 4))
-    parts.push(limb(new THREE.Vector3(-0.5, 1.5, R), new THREE.Vector3(0.5, 1.5, R), 0.05, 0.05, 4))
-    const frame = merge(parts)
-    paint(frame, (p) => {
-      const k = 0.5 + vnoise(p.x * 6, p.y * 6) * 0.5
-      const ember = p.y < 0.35 && vnoise(p.x * 3 + 7, p.z * 3) > 0.62 ? 1 : 0
-      return [0.05 * k + ember * 0.22, 0.035 * k + ember * 0.05, 0.025 * k]
+    const H = 1.3
+    // the door looks toward the clearing where Aldar comes back from the river
+    const toStart = startM ? new THREE.Vector3(startM.x - m.x, 0, startM.z - m.z).normalize() : new THREE.Vector3(0, 0, 1)
+    const doorA = Math.atan2(toStart.x, toStart.z)
+    const gap = 0.9
+    // felt walls: silt and moss below, frosted white felt above
+    const wall = new THREE.CylinderGeometry(R, R, H, 40, 6, true, doorA + gap / 2, Math.PI * 2 - gap)
+    wall.translate(0, H / 2, 0)
+    paint(wall, (p) => {
+      const n = vnoise(p.x * 3 + 5, p.z * 3) * 0.5 + vnoise(p.y * 9, p.x * 2) * 0.3
+      const silt = smoothstep(H * 0.72, H * 0.55, p.y + (n - 0.4) * 0.25)
+      const moss = smoothstep(0.35, 0.0, p.y) * 0.6
+      const felt: RGB = [0.5 + n * 0.08, 0.49 + n * 0.08, 0.46 + n * 0.08]
+      const mud: RGB = [0.045 + moss * 0.0, 0.04 + moss * 0.03, 0.03]
+      const frost = vnoise(p.x * 14, p.y * 14 + p.z * 7) > 0.72 ? 0.12 : 0
+      return [lerp(felt[0], mud[0], silt) + frost, lerp(felt[1], mud[1], silt) + frost, lerp(felt[2], mud[2], silt) + frost * 1.1]
     })
-    const fm = new THREE.Mesh(frame, std(0xffffff, 1, { vertexColors: true }))
-    fm.castShadow = true
-    g.add(fm)
-    // the crown wheel (shanyrak) fell into the ashes
-    const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.06, 5, 16), charMat)
-    wheel.rotation.set(Math.PI / 2 - 0.25, 0, 0.2)
-    wheel.position.set(-0.3, 0.12, 0.2)
-    g.add(wheel)
-    // ash bed and smouldering spots
-    const ash = new THREE.Mesh(new THREE.CircleGeometry(R * 0.95, 24).rotateX(-Math.PI / 2), std(0x2a2724, 1))
-    ash.position.y = 0.015
-    ash.receiveShadow = true
-    g.add(ash)
-    // a scatter of small embers, dim, breathing in the ash
-    const emberMat = glow(0.7, 0.16, 0.03)
-    for (let i = 0; i < 26; i++) {
-      const a = rng() * Math.PI * 2
-      const r = Math.sqrt(rng()) * R * 0.85
-      const coal = new THREE.Mesh(new THREE.CircleGeometry(0.025 + rng() * 0.05, 5).rotateX(-Math.PI / 2), emberMat)
-      coal.position.set(Math.cos(a) * r, 0.025, Math.sin(a) * r)
-      g.add(coal)
+    const feltMat = patchMaterial(std(0xffffff, 0.95, { vertexColors: true, side: THREE.DoubleSide }), { fade: true })
+    const wm = new THREE.Mesh(wall, feltMat)
+    wm.castShadow = true
+    wm.receiveShadow = true
+    g.add(wm)
+    // Aisylu's red geometric embroidery round the top of the walls, faded under ice
+    const band = new THREE.CylinderGeometry(R + 0.01, R + 0.01, 0.16, 40, 1, true, doorA + gap / 2, Math.PI * 2 - gap)
+    band.translate(0, H - 0.12, 0)
+    const bandMat = patchMaterial(std(0xd8a8a0, 0.9, { map: ornamentTexture(), side: THREE.DoubleSide }), { fade: true })
+    g.add(new THREE.Mesh(band, bandMat))
+    // the dome of felt over the roof poles
+    const th = 1.0
+    const rs = R / Math.sin(th)
+    const dome = new THREE.SphereGeometry(rs, 32, 8, 0, Math.PI * 2, 0, th)
+    dome.translate(0, H - rs * Math.cos(th), 0)
+    paint(dome, (p) => {
+      const n = vnoise(p.x * 2.5, p.z * 2.5)
+      const k = 0.2 + n * 0.08
+      const wet = vnoise(p.x * 1.3 + 9, p.z * 1.3) > 0.55 ? 0.55 : 1
+      return [k * wet, k * wet * 0.98, k * wet * 0.94]
+    })
+    // the roof felt is matte and sodden: it must not shine under the coal's light
+    const roofMat = patchMaterial(std(0xffffff, 1, { vertexColors: true, side: THREE.DoubleSide }), { fade: true })
+    const roof = new THREE.Mesh(dome, roofMat)
+    roof.castShadow = true
+    g.add(roof)
+    // the roof poles (uyk) show through the sagging felt: dark ribs from the crown wheel down to the walls
+    const ribs: THREE.BufferGeometry[] = []
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2
+      const pts: THREE.Vector3[] = []
+      // on the dome's surface: its centre sits rs·cos(th) below the top of the walls
+      const y0 = H - rs * Math.cos(th)
+      for (let k = 0; k <= 6; k++) {
+        const t = 0.16 + (k / 6) * (th - 0.16)
+        pts.push(new THREE.Vector3(Math.sin(a) * rs * Math.sin(t), y0 + rs * Math.cos(t) + 0.015, Math.cos(a) * rs * Math.sin(t)))
+      }
+      ribs.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, 0.025, 4))
     }
-    // Aisylu's embroidered felt, scorched
-    const orn = std(0x8a7a66, 0.95, { map: ornamentTexture(), side: THREE.DoubleSide })
-    for (let i = 0; i < 4; i++) {
-      const felt = new THREE.Mesh(new THREE.PlaneGeometry(1.0 + rng() * 0.6, 0.7 + rng() * 0.4, 3, 2), i < 2 ? orn : std(0x221a14, 1, { side: THREE.DoubleSide }))
-      displace(felt.geometry, 0.12, 2, i + 11)
-      felt.rotation.set(-Math.PI / 2 + (rng() - 0.5) * 0.5, rng() * 6, 0)
+    const ribMesh = new THREE.Mesh(merge(ribs), patchMaterial(std(0x1c140e, 1), { fade: true }))
+    g.add(ribMesh)
+    // dark patches where the silt soaked up into the felt
+    for (let i = 0; i < 7; i++) {
       const a = rng() * Math.PI * 2
-      felt.position.set(Math.cos(a) * (R + 0.3 + rng() * 0.8), 0.05, Math.sin(a) * (R + 0.3 + rng() * 0.8))
-      felt.receiveShadow = true
-      g.add(felt)
+      const t = 0.35 + rng() * 0.5
+      const r = rs * Math.sin(t)
+      const patch = new THREE.Mesh(new THREE.CircleGeometry(0.35 + rng() * 0.4, 10), patchMaterial(std(0x14110d, 1, { transparent: true, opacity: 0.55, depthWrite: false }), { fade: true }))
+      patch.position.set(Math.sin(a) * r, H - rs * Math.cos(th) + rs * Math.cos(t) + 0.03, Math.cos(a) * r)
+      patch.lookAt(patch.position.clone().multiplyScalar(2).setY(patch.position.y * 2 - (H - rs * Math.cos(th))))
+      g.add(patch)
     }
-    // the cradle (bishek) Timer carved for the child to come — untouched by the fire
-    const cradle = makeCradle()
-    cradle.position.set(R + 1.1, 0, 0.6)
-    cradle.rotation.y = 0.5
+    const crown = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.05, 5, 16), std(0x2a1d14, 0.9))
+    crown.rotation.x = Math.PI / 2
+    crown.position.y = H + rs * (1 - Math.cos(th)) - 0.05
+    g.add(crown)
+    // the door, torn off its hinges, on the ground before the threshold
+    const doorMat = std(0x3a2a1c, 0.95, { map: barkTexture() })
+    for (const k of [-1, 1]) {
+      const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 1.2), doorMat)
+      const dx = Math.sin(doorA) * (R + 0.9) + Math.cos(doorA) * k * 0.45
+      const dz = Math.cos(doorA) * (R + 0.9) - Math.sin(doorA) * k * 0.45
+      leaf.position.set(dx, 0.03 + (k > 0 ? 0.04 : 0), dz)
+      leaf.rotation.set(0, doorA + k * 0.35, k * 0.05)
+      leaf.castShadow = true
+      g.add(leaf)
+    }
+    // two burrows of the ubyrs, clawed out of the earth under the felt
+    const holeMat = std(0x020202, 1)
+    const dirt = std(0xffffff, 1, { vertexColors: true })
+    for (const a of [doorA + 2.1, doorA - 2.7]) {
+      const hx = Math.sin(a) * (R - 0.1)
+      const hz = Math.cos(a) * (R - 0.1)
+      const hole = new THREE.Mesh(new THREE.CircleGeometry(0.42, 12).rotateX(-Math.PI / 2), holeMat)
+      hole.position.set(hx, 0.02, hz)
+      hole.scale.set(1, 1, 0.7)
+      hole.rotation.y = a
+      g.add(hole)
+      for (let i = 0; i < 7; i++) {
+        const b = a + (rng() - 0.5) * 0.8
+        const r = R + 0.2 + rng() * 0.5
+        const clod = new THREE.Mesh(displace(blob(0.16 + rng() * 0.12, 1), 0.05, 3, i), dirt)
+        paint(clod.geometry, () => [0.05, 0.04, 0.03])
+        clod.position.set(Math.sin(b) * r, 0.05, Math.cos(b) * r)
+        g.add(clod)
+      }
+    }
+    // inside, black river water over the floor
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(R * 0.92, 28).rotateX(-Math.PI / 2), std(0x05080a, 0.12, { metalness: 0.4 }))
+    pool.position.y = 0.025
+    pool.receiveShadow = true
+    g.add(pool)
+    // the hearth: a ring of stones, the cauldron overturned on the wet ash, the last coal glowing under its rim
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2
+      batch.add(ROCK[i % 3], m.x + Math.cos(a) * 0.55, -0.05, m.z + Math.sin(a) * 0.55, a, 0.18, 0.2, 0.18)
+    }
+    const iron = std(0x1a1715, 0.6, { metalness: 0.6 })
+    const cauldron = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), iron)
+    cauldron.rotation.set(Math.PI - 0.5, 0, 0.2)
+    cauldron.position.set(0.05, 0.2, 0.0)
+    cauldron.castShadow = true
+    g.add(cauldron)
+    const coal = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), glow(2.6, 0.9, 0.2))
+    coal.position.set(0.12, 0.05, 0.22)
+    g.add(coal)
+    // the cedar bishek Aldar carved for the child to come: on its side, rimed with frost, a blue ribbon on its arch
+    const cradle = makeCradle(true)
+    const ca = doorA + Math.PI * 0.62
+    cradle.position.set(Math.sin(ca) * 1.35, 0, Math.cos(ca) * 1.35)
+    cradle.rotation.set(0, ca, 1.25)
     g.add(cradle)
-    // the catch, dropped on its willow stick
+    // the kalkan on the wall lattice (the bow was taken by Azamat in haste)
+    const gear = new THREE.Group()
+    const ga = doorA + Math.PI
+    gear.position.set(Math.sin(ga) * (R - 0.15), 0, Math.cos(ga) * (R - 0.15))
+    gear.rotation.y = ga + Math.PI
+    const shieldM = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 4, 0, Math.PI * 2, 0, 0.66), std(0x4a2e1a, 0.85))
+    shieldM.rotation.x = Math.PI / 2
+    shieldM.position.set(-0.35, 1.0, 0.25)
+    const boss = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), std(0x8a6a3a, 0.45, { metalness: 0.7 }))
+    boss.rotation.x = Math.PI / 2
+    boss.position.set(-0.35, 1.0, 0.36)
+    // empty wooden pegs where the bow usually hangs: Azamat grabbed it when running to save their mother
+    const peg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 5).rotateX(Math.PI / 2), std(0x3a2414, 0.9))
+    peg1.position.set(0.35, 1.05, 0.1)
+    const peg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 5).rotateX(Math.PI / 2), std(0x3a2414, 0.9))
+    peg2.position.set(0.55, 1.05, 0.1)
+    gear.add(shieldM, boss, peg1, peg2)
+    gear.traverse((o) => (o.castShadow = true))
+    g.add(gear)
+    // the catch, dropped on its willow stick at the threshold
     const fishMat = std(0x4c5556, 0.7, { metalness: 0.1 })
-    const stick = new THREE.Mesh(limb(new THREE.Vector3(-0.5, 0.03, 0), new THREE.Vector3(0.6, 0.06, 0.1), 0.012, 0.01, 4), cradleWood)
     const catchG = new THREE.Group()
-    catchG.add(stick)
+    catchG.add(new THREE.Mesh(limb(new THREE.Vector3(-0.5, 0.03, 0), new THREE.Vector3(0.6, 0.06, 0.1), 0.012, 0.01, 4), cradleWood))
     for (let i = 0; i < 3; i++) {
       const f = new THREE.Mesh(displace(blob(0.1, 1), 0.01, 4, 20 + i), fishMat)
       f.scale.set(2.6, 0.45, 0.9)
       f.position.set(-0.25 + i * 0.3, 0.05, 0.08 + (rng() - 0.5) * 0.1)
-      f.rotation.y = (rng() - 0.5) * 0.6
       catchG.add(f)
     }
-    catchG.position.set(R + 0.4, 0, R + 0.6)
-    catchG.rotation.y = 2.2
+    catchG.position.set(Math.sin(doorA + 0.5) * (R + 1.6), 0, Math.cos(doorA + 0.5) * (R + 1.6))
+    catchG.rotation.y = doorA + 1.2
     g.add(catchG)
-
+    // rusty fur on the threshold: some small beast threw itself at the dead here
+    const furMat = std(0x8a3f18, 1)
+    const door = new THREE.Vector3(m.x + Math.sin(doorA) * (R + 0.35), 0, m.z + Math.cos(doorA) * (R + 0.35))
+    for (let i = 0; i < 5; i++) {
+      const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.12, 4), furMat)
+      tuft.position.set(door.x - m.x + (rng() - 0.5) * 0.3, 0.03, door.z - m.z + (rng() - 0.5) * 0.3)
+      tuft.rotation.set(Math.PI / 2 - 0.2, rng() * 6, 0)
+      g.add(tuft)
+    }
     g.position.set(m.x, 0, m.z)
-    g.rotation.y = 0.9
     root.add(g)
-    const smoke = new THREE.Vector3(0.3, 0, -0.4).applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.9)
-    emitters.push({ pos: new THREE.Vector3(m.x + smoke.x, 0.4, m.z + smoke.z), kind: 'smoke', rate: 2.5, radius: 1.2, acc: 0, active: () => true })
-    emitters.push({ pos: new THREE.Vector3(m.x, 0.15, m.z), kind: 'embers', rate: 4, radius: 1.6, acc: 0, active: () => true })
-    halos.add(new THREE.Vector3(m.x, 0.3, m.z), new THREE.Color(1, 0.35, 0.12), 3.2, 0.22, null)
-    field.addCircle({ x: m.x, z: m.z, r: 2.2, occludes: false })
-    const cr = new THREE.Vector3(R + 1.1, 0, 0.6).applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.9)
-    field.addCircle({ x: m.x + cr.x, z: m.z + cr.z, r: 0.45, occludes: false })
-    clues.cradle = new THREE.Vector3(m.x + cr.x, 0, m.z + cr.z)
-    clues.prints = new THREE.Vector3(m.x, 0, m.z - 3.2)
+    // the walls block everywhere but the doorway
+    for (let a = doorA + gap / 2 + 0.12; a < doorA + Math.PI * 2 - gap / 2 - 0.05; a += 0.3) field.addCircle({ x: m.x + Math.sin(a) * R, z: m.z + Math.cos(a) * R, r: 0.32, occludes: false })
+    field.addCircle({ x: m.x + 0.05, z: m.z, r: 0.42, occludes: false })
+    const light = lights.add({ pos: new THREE.Vector3(m.x + 0.12, 0.35, m.z + 0.22), color: new THREE.Color(1, 0.42, 0.12), intensity: 1.4, distance: 3.2, flicker: 0.7, on: true })
+    halos.add(new THREE.Vector3(m.x + 0.12, 0.15, m.z + 0.22), new THREE.Color(1, 0.4, 0.12), 0.7, 0.18, light)
+    emitters.push({ pos: new THREE.Vector3(m.x, 0.4, m.z), kind: 'motes', rate: 1.5, radius: 2, acc: 0, active: () => true })
+    hearth = { pos: new THREE.Vector3(m.x, 0, m.z), door, coal, gear, light }
+    clues.fur = door.clone()
+    clues.cradle = new THREE.Vector3(m.x + cradle.position.x, 0, m.z + cradle.position.z)
+    clues.prints = door.clone().addScaledVector(toStart, -0.2).add(new THREE.Vector3(Math.cos(doorA) * 1.6, 0, -Math.sin(doorA) * 1.6))
   }
 
   /**
-   * Ash footprints from the burned yurt into the forest: Aisylu's, the boy's, and the long bare feet of the dead.
-   * They follow the shortest walkable path north and guide the player instead of a map.
+   * Three trails in the mud from the yurt into the forest (docs/STORY.md, «Завязка»): Aisylu's ichigi, the long bare feet
+   * of the albasty beside them, and Azamat's hurried boots on top. They follow the shortest walkable path north and show
+   * only in the heat focus: they guide the player instead of a map.
    */
   const addTracks = (from: Marker, to: Marker) => {
     const { cols, rows, walk } = level
@@ -1080,44 +1403,21 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
       return { p, dir }
     }
     const foot = new THREE.CircleGeometry(1, 10).rotateX(-Math.PI / 2)
-    const ashMat = std(0x7a736a, 1, { transparent: true, opacity: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })
-    const deadMat = std(0x0f0c0a, 1, { transparent: true, opacity: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })
-    ashMat.userData.base = 0.6
-    deadMat.userData.base = 0.75
-    trackMats.push(ashMat, deadMat)
-    const CLOTH_AT = 10
-    const BREAK_AT = Math.min(24, total - 4)
+    const ichigi = trackMaterial(new THREE.Color(0.16, 0.12, 0.09), 0.1)
+    const bare = trackMaterial(new THREE.Color(0.22, 0.24, 0.26), 0.08)
+    const boots = trackMaterial(new THREE.Color(0.13, 0.1, 0.08), 0.12)
     const walkers = [
-      { mat: ashMat, stride: 0.62, len: 0.12, wid: 0.045, lat: -0.35, jit: 0.04 }, // Aisylu
-      { mat: ashMat, stride: 0.42, len: 0.085, wid: 0.035, lat: 0.32, jit: 0.1, until: BREAK_AT }, // Azamat, stumbling, until he breaks free
-      { mat: deadMat, stride: 0.85, len: 0.17, wid: 0.055, lat: -0.85, jit: 0.12 }, // the dead
-      { mat: deadMat, stride: 0.8, len: 0.17, wid: 0.055, lat: 0.85, jit: 0.12 },
+      { mat: ichigi, stride: 0.62, len: 0.12, wid: 0.042, lat: -0.3, jit: 0.04 }, // Aisylu, led, not dragged
+      { mat: bare, stride: 0.95, len: 0.2, wid: 0.05, lat: 0.32, jit: 0.06 }, // the albasty: long, bare, even
+      { mat: boots, stride: 0.38, len: 0.085, wid: 0.035, lat: -0.15, jit: 0.14 }, // Azamat, running, over his mother's
     ]
     const m4 = new THREE.Matrix4()
     const quat = new THREE.Quaternion()
     const up = new THREE.Vector3(0, 1, 0)
-    {
-      // a scrap of Aisylu's dress caught on a dry branch by the trail
-      const { p, dir } = at(CLOTH_AT)
-      const n = new THREE.Vector2(-dir.y, dir.x)
-      const sp = p.clone().add(n.multiplyScalar(-0.9))
-      const branch = new THREE.Mesh(limb(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.25, 0.75, 0.1), 0.025, 0.01, 4), std(0x2a1d14, 1))
-      branch.position.set(sp.x, 0, sp.y)
-      root.add(branch)
-      const scrap = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.24, 2, 2), std(0x7d8fb8, 0.9, { map: ornamentTexture(), side: THREE.DoubleSide }))
-      displace(scrap.geometry, 0.03, 3, 5)
-      scrap.position.set(sp.x + 0.2, 0.58, sp.y + 0.08)
-      scrap.rotation.set(0.2, Math.atan2(dir.x, dir.y), 0.3)
-      root.add(scrap)
-      clues.cloth = new THREE.Vector3(sp.x, 0, sp.y)
-    }
     for (const wk of walkers) {
       const mats: THREE.Matrix4[] = []
       let side = 1
-      const end = 'until' in wk ? (wk.until as number) : total - 1
-      for (let d = 3 + rng() * 0.5; d < end; d += wk.stride * (0.9 + rng() * 0.2)) {
-        // the trail thins out as the ash wears off their feet
-        if (d > 22 && rng() < (d - 22) / (total - 22) * 0.75) continue
+      for (let d = 2.5 + rng() * 0.5; d < total - 1; d += wk.stride * (0.9 + rng() * 0.2)) {
         const { p, dir } = at(d)
         const nx = -dir.y
         const nz = dir.x
@@ -1130,36 +1430,10 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
         m4.compose(new THREE.Vector3(x, 0.025, z), quat, new THREE.Vector3(wk.wid, 1, wk.len))
         mats.push(m4.clone())
       }
-      if ('until' in wk) {
-        // the boy breaks away: small running prints leave the trail into the thicket
-        const { p, dir } = at(BREAK_AT)
-        const n = new THREE.Vector2(-dir.y, dir.x)
-        const probe = (k: number) => open(Math.floor((p.x + n.x * k * 3) / CELL), Math.floor((p.y + n.y * k * 3) / CELL))
-        const sgn = probe(1) || !probe(-1) ? 1 : -1
-        const away = n.clone().multiplyScalar(sgn).add(dir.clone().multiplyScalar(0.5)).normalize()
-        let side2 = 1
-        for (let k = 0; k < 9; k++) {
-          const q2 = p.clone().add(away.clone().multiplyScalar(0.4 + k * 0.5))
-          const qx = q2.x - away.y * side2 * 0.08
-          const qz = q2.y + away.x * side2 * 0.08
-          side2 = -side2
-          quat.setFromAxisAngle(up, Math.atan2(away.x, away.y) + (rng() - 0.5) * 0.4)
-          m4.compose(new THREE.Vector3(qx, 0.025, qz), quat, new THREE.Vector3(wk.wid, 1, wk.len * 0.9))
-          mats.push(m4.clone())
-        }
-        // his kurai whistle, dropped where he tore free
-        const wp = p.clone().add(away.clone().multiplyScalar(0.3))
-        const kurai = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.017, 0.32, 6), std(0xc9b48a, 0.7))
-        kurai.rotation.set(Math.PI / 2, 0, Math.atan2(away.x, away.y) + 0.8)
-        kurai.position.set(wp.x, 0.03, wp.y)
-        kurai.castShadow = true
-        root.add(kurai)
-        clues.whistle = new THREE.Vector3(wp.x, 0, wp.y)
-      }
       const im = new THREE.InstancedMesh(foot, wk.mat, mats.length)
       mats.forEach((mm, i) => im.setMatrixAt(i, mm))
-      im.receiveShadow = true
       im.renderOrder = 1
+      im.frustumCulled = false
       root.add(im)
     }
   }
@@ -1217,24 +1491,69 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     spring = { pos: new THREE.Vector3(m.x, 0, m.z), light, water }
   }
 
+  /**
+   * A drop of living water Yanshishma (docs/ASSETS.md 2.4): a split black boulder with an old tamga, in its cleft over dead
+   * roots a big drop of liquid silver hovers and trembles. Given to the earth, young shoots and white kurai flowers come up.
+   */
+  const silver = glow(1.5, 2.0, 2.6)
   const addDrop = (m: Marker) => {
     const g = new THREE.Group()
     g.position.set(m.x, 0, m.z)
-    const altar = new THREE.Mesh(displace(blob(0.6, 2), 0.25, 2, 8), stoneMat)
-    altar.scale.set(1, 0.7, 1)
-    altar.position.y = 0.25
-    altar.castShadow = true
-    altar.receiveShadow = true
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), glow(0.6, 2.6, 2.2))
-    orb.scale.set(1, 1.35, 1)
-    orb.position.y = 1.35
-    g.add(altar, orb)
+    const black = std(0x16171a, 0.6, { map: barkTexture() })
+    for (const k of [-1, 1]) {
+      const half = new THREE.Mesh(displace(blob(0.55, 2), 0.18, 2, 8 + k), black)
+      half.scale.set(0.62, 0.9, 1)
+      half.position.set(k * 0.38, 0.35, 0)
+      half.rotation.z = -k * 0.18
+      half.castShadow = true
+      half.receiveShadow = true
+      g.add(half)
+    }
+    const tm = glow(0.5, 0.75, 0.95)
+    const sign = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.014, 4, 12, Math.PI * 1.4), tm)
+    sign.position.set(-0.42, 0.55, 0.42)
+    sign.rotation.set(0, -0.3, Math.PI * 0.8)
+    g.add(sign)
+    // dead roots in the cleft
+    for (let i = 0; i < 5; i++) {
+      const a = rng() * Math.PI * 2
+      g.add(new THREE.Mesh(limb(new THREE.Vector3(0, 0.05, 0), new THREE.Vector3(Math.cos(a) * 0.5, 0.25 + rng() * 0.3, Math.sin(a) * 0.5), 0.03, 0.008, 4), std(0x2a2620, 1)))
+    }
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.15, 18, 14), silver)
+    orb.position.y = 1.1
+    g.add(orb)
+    // given to the earth: shoots and white kurai flowers round the stone
+    const sprouts = new THREE.Group()
+    const green = std(0x3f6a2a, 0.8, { side: THREE.DoubleSide })
+    const white = std(0xe8e6dc, 0.6, { emissive: 0x2a2a26 })
+    for (let i = 0; i < 26; i++) {
+      const a = rng() * Math.PI * 2
+      const r = 0.7 + rng() * 1.6
+      const x = Math.cos(a) * r
+      const z = Math.sin(a) * r
+      const h = 0.2 + rng() * 0.45
+      const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.04, h).translate(0, h / 2, 0), green)
+      blade.position.set(x, 0, z)
+      blade.rotation.y = rng() * 6
+      sprouts.add(blade)
+      if (i % 3 === 0) {
+        const fl = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), white)
+        fl.position.set(x, h + 0.02, z)
+        sprouts.add(fl)
+      }
+    }
+    sprouts.scale.setScalar(0.001)
+    sprouts.visible = false
+    g.add(sprouts)
     root.add(g)
-    const light = lights.add({ pos: new THREE.Vector3(m.x, 1.4, m.z), color: new THREE.Color(0.3, 1, 0.9), intensity: 8, distance: 9, flicker: 0.15, on: true })
-    halos.add(new THREE.Vector3(m.x, 1.35, m.z), new THREE.Color(0.3, 1, 0.9), 3.4, 0.55, light)
-    drop = { pos: new THREE.Vector3(m.x, 0, m.z), group: g, orb, light, taken: false }
-    emitters.push({ pos: new THREE.Vector3(m.x, 1.35, m.z), kind: 'sparkle', rate: 6, radius: 0.3, acc: 0, active: () => !!drop && !drop.taken })
-    field.addCircle({ x: m.x, z: m.z, r: 0.6, occludes: false })
+    const light = lights.add({ pos: new THREE.Vector3(m.x, 1.2, m.z), color: new THREE.Color(0.7, 0.9, 1), intensity: 8, distance: 9, flicker: 0.15, on: true })
+    halos.add(new THREE.Vector3(m.x, 1.1, m.z), new THREE.Color(0.72, 0.9, 1), 3.2, 0.5, light)
+    const drop: Drop = { n: 0, pos: new THREE.Vector3(m.x, 0, m.z), group: g, orb, light, sprouts, taken: false, grove: null }
+    drops.push(drop)
+    emitters.push({ pos: new THREE.Vector3(m.x, 1.1, m.z), kind: 'sparkle', rate: 6, radius: 0.3, acc: 0, active: () => !drop.taken })
+    const c = { x: m.x, z: m.z, r: 0.85, occludes: false }
+    field.addCircle(c)
+    stones.push(c)
   }
 
   const groveFoliage: THREE.Object3D[] = []
@@ -1301,7 +1620,9 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     sign.add(drops)
     sign.position.set(sx, 1.25, sz + 0.18)
     root.add(sign)
-    field.addCircle({ x: sx, z: sz, r: 0.45, occludes: false })
+    const stc = { x: sx, z: sz, r: 0.45, occludes: false }
+    field.addCircle(stc)
+    stones.push(stc)
     halos.add(new THREE.Vector3(sx, 1.1, sz), new THREE.Color(0.9, 0.35, 0.15), 1.6, 0.14, null)
     // explicit page: the fourth tamga tells of Ural and the rule of the water
     barrowTamga = { pos: new THREE.Vector3(sx, 0, sz), id: 3, read: false }
@@ -1323,40 +1644,197 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     triggers.push({ id: 'A', pos: new THREE.Vector3(m.x, 0, m.z), fired: false })
   }
 
-  /** the bee tree: an old pine with a carved hollow and a climbing rope */
-  const addBeeTree = (m: Marker) => {
-    batch.add(PINES[1], m.x, 0, m.z, rng() * 6, 1.35, 1.25, 1.35)
-    const g = new THREE.Group()
-    g.position.set(m.x, 0, m.z)
-    const hole = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.55), std(0x050403, 1, { side: THREE.DoubleSide }))
-    hole.position.set(0, 2.6, 0.36)
-    const board = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.62, 0.04), woodMat)
-    board.position.set(0.26, 2.6, 0.33)
-    board.rotation.y = 0.5
-    g.add(hole, board)
-    for (let i = 0; i < 3; i++) {
-      const rope = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.018, 4, 18), std(0x6a5a3e, 1))
-      rope.rotation.x = Math.PI / 2 + (rng() - 0.5) * 0.2
-      rope.position.y = 0.9 + i * 0.7
-      g.add(rope)
+  let hollow: THREE.Vector3 | null = null
+  let oak: THREE.Vector3 | null = null
+  /**
+   * Zone 12: the giant hollow oak in the middle of the glade. Azamat hides in its hollow 6 m up; Shurale waits in its crown.
+   */
+  const addGreatOak = (m: Marker) => {
+    const bark = std(0xffffff, 1, { vertexColors: true, map: barkTexture() })
+    const trunkG = limb(new THREE.Vector3(0, -0.3, 0), new THREE.Vector3(0.25, 6.6, 0.1), 1.15, 0.62, 12)
+    displace(trunkG, 0.12, 1.6, 41)
+    paint(trunkG, (p) => {
+      const k = 0.7 + vnoise(p.x * 3, p.y * 2) * 0.5
+      return [0.07 * k, 0.058 * k, 0.045 * k]
+    })
+    const trunk = new THREE.Mesh(trunkG, patchMaterial(bark, { fade: true }))
+    trunk.position.set(m.x, 0, m.z)
+    trunk.castShadow = true
+    trunk.receiveShadow = true
+    root.add(trunk)
+    const crown = new THREE.Mesh(deadTreeGeo(931, 2.1, [0.06, 0.05, 0.04]), deadMat)
+    crown.position.set(m.x, 3.6, m.z)
+    crown.castShadow = true
+    root.add(crown)
+    // roots like knuckles round its foot
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + rng() * 0.3
+      const r0 = new THREE.Vector3(m.x + Math.cos(a) * 0.9, 0.35, m.z + Math.sin(a) * 0.9)
+      const r1 = new THREE.Vector3(m.x + Math.cos(a) * (2.2 + rng()), -0.1, m.z + Math.sin(a) * (2.2 + rng()))
+      const root1 = new THREE.Mesh(limb(r0, r1, 0.32, 0.08, 6), trunk.material)
+      root1.castShadow = true
+      root.add(root1)
     }
-    root.add(g)
-    field.addCircle({ x: m.x, z: m.z, r: 0.6, occludes: true })
-    emitters.push({ pos: new THREE.Vector3(m.x, 2.6, m.z + 0.4), kind: 'fireflies', rate: 0.6, radius: 1.2, acc: 0, active: () => true })
+    // the hollow, 5.5 m up on the side facing the way in; a warm breath inside: somebody is alive there
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(0.36, 14), std(0x030202, 1))
+    hole.scale.set(0.8, 1.35, 1)
+    hole.position.set(m.x + 0.2, 5.5, m.z + 0.7)
+    root.add(hole)
+    const light = lights.add({ pos: new THREE.Vector3(m.x + 0.2, 5.5, m.z + 1.1), color: new THREE.Color(1, 0.6, 0.3), intensity: 1.6, distance: 4, flicker: 0.3, on: true })
+    halos.add(new THREE.Vector3(m.x + 0.2, 5.5, m.z + 0.85), new THREE.Color(1, 0.6, 0.3), 0.9, 0.12, light)
+    field.addCircle({ x: m.x, z: m.z, r: 1.35, occludes: true })
+    hollow = new THREE.Vector3(m.x + 0.2, 5.5, m.z + 0.9)
+    oak = new THREE.Vector3(m.x, 0, m.z)
   }
 
-  let hollow: THREE.Vector3 | null = null
-  /** the old tree of the glade: a black hollow where the boy is hidden */
-  const addHollowTree = (m: Marker) => {
-    addGreatTree(m)
-    const hole = new THREE.Mesh(new THREE.CircleGeometry(0.42, 14), std(0x030202, 1))
-    hole.scale.set(0.8, 1.3, 1)
-    hole.position.set(m.x, 1.25, m.z + 0.82)
-    root.add(hole)
-    // a faint warm breath inside: somebody is alive there
-    const light = lights.add({ pos: new THREE.Vector3(m.x, 1.2, m.z + 1.2), color: new THREE.Color(1, 0.6, 0.3), intensity: 1.6, distance: 4, flicker: 0.3, on: true })
-    halos.add(new THREE.Vector3(m.x, 1.25, m.z + 0.9), new THREE.Color(1, 0.6, 0.3), 0.9, 0.12, light)
-    hollow = new THREE.Vector3(m.x, 0, m.z + 1)
+  let nest: Nest | null = null
+  /** zone 3: a raven's nest with a charm in it, on a bough over the path; an arrow brings it down */
+  const addNest = (m: Marker) => {
+    const w = wallDir(m.x, m.z)
+    const tx = m.x + w.dir.x * (w.dist + 0.4)
+    const tz = m.z + w.dir.z * (w.dist + 0.4)
+    const tree = new THREE.Mesh(deadTreeGeo(717, 1.15), deadMat)
+    tree.position.set(tx, 0, tz)
+    tree.castShadow = true
+    root.add(tree)
+    // the bough reaching out over the path
+    const bough = new THREE.Mesh(limb(new THREE.Vector3(tx, 3.1, tz), new THREE.Vector3(m.x - w.dir.x * 0.6, 3.6, m.z - w.dir.z * 0.6), 0.12, 0.04, 5), deadMat)
+    bough.castShadow = true
+    root.add(bough)
+    const g = new THREE.Group()
+    const twig = std(0x2a2016, 1)
+    for (let i = 0; i < 3; i++) {
+      const t = new THREE.Mesh(new THREE.TorusGeometry(0.22 - i * 0.04, 0.05, 4, 10), twig)
+      t.rotation.x = Math.PI / 2
+      t.position.y = i * 0.05
+      g.add(t)
+    }
+    const charm = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 4, 10), glow(1.6, 0.9, 0.4))
+    charm.position.y = 0.16
+    g.add(charm)
+    g.position.set(m.x, 3.45, m.z)
+    g.traverse((o) => (o.castShadow = true))
+    root.add(g)
+    halos.add(new THREE.Vector3(m.x, 3.6, m.z), new THREE.Color(1, 0.6, 0.25), 0.8, 0.12, null)
+    nest = { pos: new THREE.Vector3(m.x, 0, m.z), mesh: g, fallen: false, t: 0 }
+  }
+
+  let droppedBow: LevelBuild['droppedBow'] = null
+  /** zone 5/7: Aldar's bow and quiver lost by Azamat at the stream crossing (TRG_CH1_BOW_STREAM) */
+  const addDroppedBow = (m: Marker) => {
+    const g = new THREE.Group()
+    const stone = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.48, 0.12, 7), std(0x283036, 0.9))
+    stone.position.set(0, 0.04, 0)
+    stone.rotation.y = 0.6
+    g.add(stone)
+    const bowGeo = new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-0.52, 0.1, 0.05),
+        new THREE.Vector3(-0.32, 0.04, 0.02),
+        new THREE.Vector3(0, 0.03, 0),
+        new THREE.Vector3(0.32, 0.04, 0.02),
+        new THREE.Vector3(0.52, 0.1, 0.05),
+      ]),
+      16,
+      0.016,
+      5,
+    )
+    const bowMesh = new THREE.Mesh(bowGeo, std(0x2c1a0e, 0.7))
+    bowMesh.position.set(0, 0.08, 0)
+    const strGeo = new THREE.CylinderGeometry(0.003, 0.003, 1.02, 3).rotateZ(Math.PI / 2)
+    strGeo.translate(0, 0.18, 0.05)
+    const strMesh = new THREE.Mesh(strGeo, std(0xb8ad90, 0.8))
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.13, 6).rotateZ(Math.PI / 2), std(0x735738, 0.9))
+    grip.position.set(0, 0.11, 0)
+    const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, 0.46, 8).rotateZ(1.35), std(0x4a3220, 0.85))
+    quiver.position.set(0.12, 0.1, 0.16)
+    for (let i = 0; i < 3; i++) {
+      const arr = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.38, 4).rotateZ(1.35), std(0x6b5236, 0.8))
+      arr.position.set(-0.12 - i * 0.03, 0.1 + i * 0.012, 0.14 + (i - 1) * 0.02)
+      g.add(arr)
+    }
+    const blueThread = new THREE.Mesh(
+      new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3([
+          new THREE.Vector3(-0.52, 0.18, 0.05),
+          new THREE.Vector3(-0.58, 0.14, 0.09),
+          new THREE.Vector3(-0.64, 0.09, 0.05),
+        ]),
+        8,
+        0.007,
+        4,
+      ),
+      std(0x2c5cb0, 0.85, { emissive: 0x0a1a3a }),
+    )
+    g.add(bowMesh, strMesh, grip, quiver, blueThread)
+    g.position.set(m.x, 0, m.z)
+    g.rotation.y = 0.4
+    g.traverse((o) => (o.castShadow = true))
+    root.add(g)
+    const light = lights.add({ pos: new THREE.Vector3(m.x, 0.35, m.z), color: new THREE.Color(1.1, 0.75, 0.35), intensity: 0.9, distance: 3.5, flicker: 0.4, on: true })
+    const halo = halos.add(new THREE.Vector3(m.x, 0.12, m.z), new THREE.Color(1.3, 0.85, 0.3), 0.75, 0.22, light)
+    droppedBow = { pos: new THREE.Vector3(m.x, 0, m.z), mesh: g, light, halo, taken: false }
+  }
+
+  /** an arrow standing in a trunk at the edge of the path */
+  const addTrunkArrow = (m: Marker) => {
+    const w = wallDir(m.x, m.z)
+    const pos = new THREE.Vector3(m.x + w.dir.x * (w.dist - 0.15), 1.25, m.z + w.dir.z * (w.dist - 0.15))
+    const pine = new THREE.Mesh(limb(new THREE.Vector3(0, -0.2, 0), new THREE.Vector3(0.1, 7, 0), 0.26, 0.1, 7), deadMat)
+    pine.position.set(m.x + w.dir.x * (w.dist + 0.15), 0, m.z + w.dir.z * (w.dist + 0.15))
+    pine.castShadow = true
+    root.add(pine)
+    stuckArrows.push({ pos, dir: w.dir.clone().setY(-0.15).normalize() })
+  }
+
+  /** zone 11: a hunter's blind of branches, and a target of bark on a trunk with two arrows in it */
+  const addBlind = (m: Marker) => {
+    const w = wallDir(m.x, m.z)
+    const bx = m.x + w.dir.x * (w.dist - 0.4)
+    const bz = m.z + w.dir.z * (w.dist - 0.4)
+    const branch = std(0x2a1e14, 1)
+    for (let i = 0; i < 9; i++) {
+      const a = new THREE.Vector3(bx + (rng() - 0.5) * 1.6, 0, bz + (rng() - 0.5) * 1.6)
+      const top = new THREE.Vector3(bx - w.dir.x * 0.4, 1.4, bz - w.dir.z * 0.4)
+      const b = new THREE.Mesh(limb(a, top, 0.035, 0.015, 4), branch)
+      b.castShadow = true
+      root.add(b)
+    }
+    // the target: a disc of bark on a trunk across the path
+    const tdir = w.dir.clone().negate()
+    const tx = m.x + tdir.x * 1.2
+    const tz = m.z + tdir.z * 1.2
+    const trunk = new THREE.Mesh(limb(new THREE.Vector3(0, -0.2, 0), new THREE.Vector3(0, 4, 0), 0.24, 0.14, 7), deadMat)
+    trunk.position.set(tx, 0, tz)
+    trunk.castShadow = true
+    root.add(trunk)
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(0.3, 14), std(0xb8955a, 0.9))
+    disc.position.set(tx - tdir.x * 0.25, 1.3, tz - tdir.z * 0.25)
+    disc.lookAt(m.x, 1.3, m.z)
+    root.add(disc)
+    field.addCircle({ x: tx, z: tz, r: 0.3, occludes: true })
+    for (const k of [-1, 1]) {
+      const pos = new THREE.Vector3(tx - tdir.x * 0.3 + tdir.z * k * 0.08, 1.3 + k * 0.06, tz - tdir.z * 0.3 - tdir.x * k * 0.08)
+      stuckArrows.push({ pos, dir: tdir.clone().setY(-0.05).normalize() })
+    }
+  }
+
+  /** zone 11: a pine fallen across the corridor, branches broken off */
+  const addFallenPine = (m: Marker) => {
+    const a = rng() * Math.PI
+    const len = 6 + rng() * 2
+    const dx = Math.cos(a) * len * 0.5
+    const dz = Math.sin(a) * len * 0.5
+    const log = new THREE.Mesh(limb(new THREE.Vector3(m.x - dx, 0.25, m.z - dz), new THREE.Vector3(m.x + dx, 0.18, m.z + dz), 0.32, 0.18, 8), deadMat)
+    log.castShadow = true
+    log.receiveShadow = true
+    root.add(log)
+    for (let i = 0; i < 5; i++) {
+      const t = rng()
+      const base = new THREE.Vector3(m.x - dx + dx * 2 * t, 0.3, m.z - dz + dz * 2 * t)
+      const tip = base.clone().add(new THREE.Vector3((rng() - 0.5) * 1.2, 0.5 + rng() * 0.8, (rng() - 0.5) * 1.2))
+      root.add(new THREE.Mesh(limb(base, tip, 0.05, 0.01, 4), deadMat))
+    }
   }
 
   const thornCells: number[] = []
@@ -1449,17 +1927,13 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     barriers.push({ kind, cells, circles, mesh: g, mat, open: false, t: -1, center: new THREE.Vector3(cx, 0, cz) })
   }
 
-  // ash footprints from the burned yurt to where the wolves wait
-  const yurtM = level.markers.find((m) => m.ch === 'e')
-  const trailEnd = level.markers.find((m) => m.ch === '6')
-  if (yurtM && trailEnd) addTracks(yurtM, trailEnd)
 
   // the other signs, at the story places (docs/TRACKING.md)
   const mk = (ch: string) => level.markers.find((m) => m.ch === ch)
   const hunter = mk('h')
   if (hunter) {
-    // a long black strand clenched in the hunter's hand
-    const hairMat = std(0x0a0808, 0.8)
+    // a long grey strand clenched in the hunter's hand: he fought the one with grey hair to her heels
+    const hairMat = std(0x8a8a86, 0.7)
     for (let i = 0; i < 4; i++) {
       const a0 = new THREE.Vector3(hunter.x + 0.5, 0.05, hunter.z + 0.3)
       const a1 = a0.clone().add(new THREE.Vector3(0.6 + i * 0.12, 0.01, -0.4 + i * 0.15))
@@ -1486,21 +1960,6 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     field.addCircle({ x: camp.x + 3.1, z: camp.z + 0.4, r: 0.45, occludes: false })
     clues.camp_cradle = new THREE.Vector3(camp.x + 3.1, 0, camp.z + 0.4)
   }
-  const horse = mk('H')
-  if (horse) {
-    // drag furrows of the dead turning east, toward the mountains
-    const furrow = std(0x0d0a08, 1, { transparent: true, opacity: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })
-    for (let i = 0; i < 3; i++) {
-      const f = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 3.2).rotateX(-Math.PI / 2), furrow)
-      f.position.set(horse.x + 2.2, 0.02, horse.z - 0.4 + i * 0.35)
-      f.rotation.y = Math.PI / 2 + (i - 1) * 0.08
-      root.add(f)
-    }
-    clues.turn = new THREE.Vector3(horse.x + 1.6, 0, horse.z)
-  }
-  const arch = mk('c')
-  if (arch) clues.charms = new THREE.Vector3(arch.x, 0, arch.z + 1.2)
-
   for (const m of level.markers) {
     switch (m.ch) {
       case 'P':
@@ -1556,7 +2015,34 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
         for (const c of addStoryProp(dctx, m)) field.addCircle(c)
         break
       case 'e':
-        addFamilyYurt(m)
+        addFloodedYurt(m)
+        break
+      case 'N':
+        addNest(m)
+        break
+      case 'i':
+        addTrunkArrow(m)
+        break
+      case 'Y':
+        addDroppedBow(m)
+        break
+      case 'W':
+        addLedge(m)
+        spawns.push(m)
+        break
+      case 'J':
+        addBlind(m)
+        break
+      case 'l':
+        addFallenPine(m)
+        break
+      case 'Q':
+        break
+      case 'C':
+        addFire(m, false)
+        break
+      case 'v':
+        addThread(m)
         break
       case 'M':
         addTrap(m)
@@ -1567,11 +2053,8 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
       case 'A':
         addOldHearth(m)
         break
-      case 'n':
-        addBeeTree(m)
-        break
       case 'T':
-        addHollowTree(m)
+        addGreatOak(m)
         break
       case 'Z':
         thornCells.push(m.row * level.cols + m.col)
@@ -1591,6 +2074,43 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     }
   }
 
+  // chapters 2–3: their own places and things
+  const veilCells: number[] = []
+  const bridgeCells: number[] = []
+  const extras = urman
+    ? emptyExtras()
+    : buildExtras({
+        biome,
+        root,
+        batch,
+        rocks: biomeKit!.rocks,
+        field,
+        level,
+        lights,
+        vfx,
+        halos,
+        rng,
+        stones,
+        stuckArrows,
+        triggers,
+        tamgas,
+        spawns,
+        emitters,
+        addFire,
+        veilCells,
+        bridgeCells,
+        groundY: (x, z) => groundAt(gctx, x, z, field.sample(x, z), bedAt(x, z)).y,
+      })
+
+  // three trails in the mud from the flooded yurt's threshold to where the wolves wait
+  const trailEnd = level.markers.find((m) => m.ch === '6')
+  const hh = hearth as Hearth | null
+  if (hh && trailEnd) {
+    const col = Math.floor(hh.door.x / CELL)
+    const row = Math.floor(hh.door.z / CELL)
+    addTracks({ ch: 'e', col, row, x: hh.door.x, z: hh.door.z }, trailEnd)
+  }
+
   if (groveCenter) {
     grove = {
       center: groveCenter,
@@ -1602,7 +2122,15 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
     halos.add(new THREE.Vector3(groveCenter.x, 3.5, groveCenter.z), new THREE.Color(1, 0.75, 0.35), 12, 0.22, grove.light)
     const gv = grove
     emitters.push({ pos: new THREE.Vector3(groveCenter.x, 2.5, groveCenter.z), kind: 'spores', rate: 8, radius: 5, acc: 0, active: () => gv.revived })
+    const gc = groveCenter
+    const owner = drops.find((d) => d.pos.distanceTo(gc) < 0.5)
+    if (owner) owner.grove = grove
   }
+  // drops are numbered along the way, south to north
+  drops.sort((a, b) => b.pos.z - a.pos.z).forEach((d, i) => (d.n = i + 1))
+  // the pines at the edge of the great oak's glade, where Shurale hides in phase 2
+  const oakAt = oak as THREE.Vector3 | null
+  const perches = level.markers.filter((m) => m.ch === 't' && oakAt && Math.hypot(m.x - oakAt.x, m.z - oakAt.z) < 26).map((m) => new THREE.Vector3(m.x, 0, m.z))
 
   // ---------- arena gate (thorns rise when the boss fight starts)
   let gate: Gate | null = null
@@ -1626,8 +2154,9 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
       circles.push({ x: x0 + CELL / 2, z: z0 + CELL / 2, r: 1.3, occludes: false })
     }
     const geo = merge(parts)
-    solid(geo, [0.05, 0.035, 0.03])
-    const mesh = new THREE.Mesh(geo, std(0xffffff, 0.9, { vertexColors: true }))
+    // black roots in the urman, black reeds and stone teeth at the crossing, ice spikes on the summit
+    solid(geo, biome === 'cave' ? [0.32, 0.38, 0.44] : biome === 'steppe' ? [0.025, 0.035, 0.04] : [0.05, 0.035, 0.03])
+    const mesh = new THREE.Mesh(geo, std(0xffffff, biome === 'cave' ? 0.3 : 0.9, { vertexColors: true }))
     mesh.castShadow = true
     mesh.position.y = -4.5
     mesh.visible = false
@@ -1637,19 +2166,47 @@ export function buildLevel(scene: THREE.Scene, level: LevelData, field: Field, l
 
   buildBarrier('thorns', thornCells)
   buildBarrier('deadfall', fallCells)
+  if (veilCells.length) {
+    const v = veilMesh(veilCells, level, rng)
+    const circles = veilCells.map((ci) => ({ x: ((ci % level.cols) + 0.5) * CELL, z: (Math.floor(ci / level.cols) + 0.5) * CELL, r: 1.3, occludes: false }))
+    for (const ci of veilCells) field.blocked[ci] = 1
+    for (const c of circles) field.addCircle(c)
+    const center = new THREE.Vector3(circles.reduce((a, c) => a + c.x, 0) / circles.length, 0, circles.reduce((a, c) => a + c.z, 0) / circles.length)
+    root.add(v.group)
+    barriers.push({ kind: 'veil', cells: veilCells, circles, mesh: v.group, mat: v.mat, open: false, t: -1, center })
+    emitters.push({ pos: center.clone().setY(1), kind: 'spirit', rate: 10, radius: (veilCells.length * CELL) / 2, acc: 0, active: () => !barriers.find((b) => b.kind === 'veil')!.open })
+  }
+  if (bridgeCells.length) {
+    const b = bridgeMesh(bridgeCells, level)
+    const circles = bridgeCells.map((ci) => ({ x: ((ci % level.cols) + 0.5) * CELL, z: (Math.floor(ci / level.cols) + 0.5) * CELL, r: 1.3, occludes: false, low: true }))
+    for (const ci of bridgeCells) field.blocked[ci] = 1
+    for (const c of circles) field.addCircle(c)
+    const center = new THREE.Vector3(circles.reduce((a, c) => a + c.x, 0) / circles.length, 0, circles.reduce((a, c) => a + c.z, 0) / circles.length)
+    root.add(b.group)
+    barriers.push({ kind: 'bridge', cells: bridgeCells, circles, mesh: b.group, mat: std(0x3a2a1c, 0.95), open: false, t: -1, center })
+  }
 
+  // the duel turns round the great oak
   const lit = level.markers.filter((m) => m.ch === 'L')
-  const arenaCenter = lit.length
-    ? new THREE.Vector3(lit.reduce((s, m) => s + m.x, 0) / lit.length, 0, lit.reduce((s, m) => s + m.z, 0) / lit.length)
-    : start.clone()
+  const arenaCenter = extras.arena
+    ? extras.arena.clone()
+    : oakAt
+    ? oakAt.clone()
+    : lit.length
+      ? new THREE.Vector3(lit.reduce((s, m) => s + m.x, 0) / lit.length, 0, lit.reduce((s, m) => s + m.z, 0) / lit.length)
+      : start.clone()
 
   const instancedMeshes = batch.build(root)
   shaftTime = shaftMat.uniforms.uTime
 
   // lore order follows the path: the stone nearest the start tells the oldest story
-  tamgas.sort((a, b) => b.pos.z - a.pos.z).forEach((t, i) => (t.id = i))
-  if (barrowTamga) tamgas.push(barrowTamga)
-  return { root, start, braziers, spring, drop, grove, gate, emitters, triggers, spawns, arenaCenter, fires, instancedMeshes, halos, tamgas, clues, trackMats, trap, barriers, hollow, waterSpots, stream }
+  tamgas.sort((a, b) => b.pos.z - a.pos.z).forEach((t, i) => (t.id = (opts.loreBase ?? 0) + i))
+  const bt = barrowTamga as LevelBuild['tamgas'][number] | null
+  if (bt) {
+    bt.id = tamgas.length
+    tamgas.push(bt)
+  }
+  return { root, start, braziers, spring, drops, gate, emitters, triggers, spawns, arenaCenter, fires, instancedMeshes, halos, tamgas, clues, trackFocus, trap, barriers, hollow, oak, perches, hearth, nest, droppedBow, stuckArrows, stones, coldFires, threads, waterSpots, stream, biome, lake, extras }
 }
 
 export let shaftTime: { value: number } = { value: 0 }
@@ -1685,6 +2242,13 @@ export function updateEmitters(emitters: Emitter[], vfx: VFX, focus: THREE.Vecto
           break
         case 'spores':
           vfx.add.spawn({ x, y: 0.5 + Math.random() * 5, z, vx: (Math.random() - 0.5) * 0.3, vy: 0.15, vz: (Math.random() - 0.5) * 0.3, r: 2.0, g: 1.4, b: 0.4, size: 0.06, life: 4, drag: 0.2 })
+          break
+        case 'spirit':
+          // the turquoise of the ancestors (docs/LEVELS.md, chapter 2): slow motes rising out of the veil
+          vfx.add.spawn({ x, y: 0.2 + Math.random() * 2.4, z, vx: (Math.random() - 0.5) * 0.2, vy: 0.2 + Math.random() * 0.35, vz: (Math.random() - 0.5) * 0.2, r: 0.3, g: 1.9, b: 1.8, a: 0.9, size: 0.05 + Math.random() * 0.04, life: 2.5, drag: 0.4 })
+          break
+        case 'snow':
+          vfx.soft.spawn({ x, y: 6 + Math.random() * 3, z, vx: 0.6 + Math.random() * 0.4, vy: -0.9 - Math.random() * 0.4, vz: (Math.random() - 0.5) * 0.3, r: 0.75, g: 0.8, b: 0.9, a: 0.8, size: 0.06, life: 9, drag: 0.1 })
           break
       }
     }

@@ -1,0 +1,43 @@
+// Scripted playthrough of chapter 1 in headless Chromium (software GL): drives the running dev server's game through
+// every zone and checks each key event of docs/LEVELS.md. Rendering is skipped; the simulation is stepped by hand.
+// Run: pnpm playtest:chapter1 [url]   (default http://localhost:3000; needs `chromium` on PATH)
+import { playtest } from './playtest-harness.mjs'
+
+const url = process.argv[2] || process.env.PLAYTEST_URL || 'http://localhost:3000/'
+
+const STEPS = [
+  ['before the coal, the clearing holds Aldar', `goCell(109, 23); return g.player.pos.z > 220`],
+  ['TRG_CH1_EMBER: coal, kalkan, bow, 3 arrows', `go(43, 230.6); tap('KeyE', 1.2); skip(); return g.kit.ember && g.kit.arrows === 3 && g.lighting.lantern.intensity > 1`],
+  ['the threshold sign (rusty fur)', `const d = g.level.clues.fur; go(d.x + 0.4, d.z + 0.6); tap('KeyE', 1.2); return g.clueFound.has('fur')`],
+  ['heat focus reveals the prints', `key('KeyF', true); step(0.8); const ok = g.player.focus && g.level.trackFocus.value.w > 0.8; key('KeyF', false); step(0.2); return ok`],
+  ['zone 2: the fern edge', `goCell(108, 23); goCell(105, 23); return g.zonesSeen.size >= 2`],
+  ['zone 3: a buried ubyr rises', `const u = g.enemies.find((e) => e.kind === 'ubyr' && e.buried && e.pos.z > 190 && e.pos.z < 215); goCell(101, 22); calm(); step(2.5); calm(); return !!u && !u.buried && u.alive`],
+  ['zone 3: the first amber flash teaches the parry', `let ok = g.amberTaught; for (let i = 0; i < 40 && !ok; i++) { step(0.1); calm(); ok = g.amberTaught } return ok`],
+  ['zone 3: an arrow brings the raven nest down', `for (const e of g.enemies) if (e.pos.distanceTo(g.player.pos) < 14) e.die(); const n = g.level.nest; go(n.pos.x, n.pos.z + 5); shoot(n.pos.x, n.pos.z - 3); step(1); return n.fallen`],
+  ['the feather keepsake is taken', `const n = g.level.nest; go(n.pos.x + 0.3, n.pos.z + 0.6); step(0.6); tap('KeyE', 1.2); return g.kit.keepsakes.has('feather')`],
+  ['zone 4: drop 1 — drink', `const d = g.level.drops.find((x) => x.n === 1); go(d.pos.x, d.pos.z + 2.2); tap('KeyE', 0.3); const open = g.choiceDrop === d; g.chooseDrop('drink'); step(0.3); return open && g.kit.waterDebt === 1 && Math.abs(g.kit.lightMult - 0.94) < 1e-6`],
+  ['zone 4: the arrow in the pine is pulled out', `tap('Digit1'); const a = g.kit.arrows; const s = g.level.stuckArrows[0]; let best = g.level.stuckArrows.reduce((b, x) => (Math.hypot(x.pos.x - 75, x.pos.z - 181) < Math.hypot(b.pos.x - 75, b.pos.z - 181) ? x : b), s); go(best.pos.x - best.dir.x * 0.8, best.pos.z - best.dir.z * 0.8); step(0.5); return g.kit.arrows > a || g.kit.arrows === g.kit.maxArrows`],
+  ['zone 5: the dead rise out of the shallows by the hunter', `const h = g.levelData.markers.find((m) => m.ch === 'h'); go(h.x + 1, h.z); calm(); step(2.5); const risen = g.enemies.filter((e) => e.kind === 'ubyr' && e.alive && !e.hidden && e.pos.distanceTo(g.player.pos) < 9).length; for (const e of g.enemies) if (e.pos.distanceTo(g.player.pos) < 14) e.die(); return risen >= 2`],
+  ['zone 5: the hunter’s fang and arrows', `calm(); const h = g.levelData.markers.find((m) => m.ch === 'h'); go(h.x - 0.9, h.z + 1.4); step(0.5); tap('KeyE', 1.2); tap('KeyE', 1.2); return g.kit.keepsakes.has('fang')`],
+  ['zone 6: the cold fire pit is lit from the vessel and holds the checkpoint', `const cf = g.level.coldFires[0]; go(cf.pos.x + 1.8, cf.pos.z); tap('KeyE', 1.2); return cf.lit && g.player.checkpoint.distanceTo(cf.pos) < 3`],
+  ['TRG_CH1_RIBBON: the blue ribbon', `const r = g.level.clues.ribbon; go(r.x + 0.4, r.z + 0.4); tap('KeyE', 1.2); skip(); step(0.3); return g.clueFound.has('ribbon')`],
+  ['zone 7: the pack leader falls to an arrow from the ledge', `const w = g.enemies.find((e) => e.ledge); go(w.pos.x - 7, w.pos.z + 2); calm(); g.kit.arrows = Math.max(g.kit.arrows, 2); shoot(w.pos.x, w.pos.z); step(0.5); return !w.alive`],
+  ['TRG_CH1_SUSAR_TRAP: Susar is freed', `for (const e of g.enemies) if (e.kind === 'wolf' && e.alive && e.pos.distanceTo(g.player.pos) < 30) e.die(); const t = g.level.trap.pos; go(t.x + 1.2, t.z + 1.2); key('KeyE', true); step(1.2); key('KeyE', false); step(1.2); skip(); step(4); return g.marten.active`],
+  ['zone 8: rest at the old spring', `const s = g.level.spring.pos; go(s.x + 2.2, s.z + 1.5); tap('KeyE', 1.2); return g.player.checkpoint.distanceTo(s) < 4`],
+  ['zone 9: Susar tears the veil off a phantom', `const m = g.enemies.find((e) => e.kind === 'morok' && e.alive && e.pos.z > 80 && e.pos.z < 100); m.hidden = false; go(m.pos.x + 4, m.pos.z); g.marten.pos.set(m.pos.x + 3, 0, m.pos.z + 1); calm(); let ok = false; for (let i = 0; i < 30 && !ok; i++) { step(0.1); calm(); ok = m.exposedT > 0 && m.marks.red > 0 } return ok`],
+  ['zone 9: a fire arrow burns the dry thorns', `for (const e of g.enemies) if (e.alive && e.pos.distanceTo(g.player.pos) < 20 && e.kind !== 'boss') e.die(); const b = g.level.barriers.find((x) => x.kind === 'thorns'); go(b.center.x, b.center.z + 6); calm(); g.kit.fervor = 60; g.kit.arrows = Math.max(g.kit.arrows, 2); shoot(b.center.x, b.center.z - 4, true); step(3); return b.open`],
+  ['zone 10: the albasty tamga on the balbal', `tap('Digit1'); const t = g.level.tamgas.find((x) => x.id === 0); go(t.pos.x + 1.2, t.pos.z + 1.2); tap('KeyE', 0.3); const open = g.loreOpen; g.closeLore(); step(0.2); return open && g.clueFound.has('tamga')`],
+  ['zone 10: drop 2 — give to the earth', `const d = g.level.drops.find((x) => x.n === 2); go(d.pos.x, d.pos.z + 2.2); calm(); tap('KeyE', 0.3); g.chooseDrop('give'); step(0.4); skip(); return g.kit.earthHealed === 1 && d.sprouts.visible`],
+  ['zone 10: the old quiver (5 → 8)', `const q = g.levelData.markers.find((m) => m.ch === 'Q'); go(q.x + 0.6, q.z + 0.6); step(0.5); tap('KeyE', 1.2); return g.kit.maxArrows === 8`],
+  ['zone 10: the deadfall gives from the south', `const b = g.level.barriers.find((x) => x.kind === 'deadfall'); go(b.center.x, b.center.z + 3); tap('KeyE', 1.2); step(1.5); return b.open`],
+  ['zone 11: the kurai is heard; the blind gives two arrows', `goCell(24, 22); goCell(20, 22); calm(); step(2.5); for (const e of g.enemies) if (e.alive && e.kind !== 'boss' && e.pos.distanceTo(g.player.pos) < 16) e.die(); g.kit.arrows = 0; const j = g.level.stuckArrows.filter((s) => s.pos.z > 30 && s.pos.z < 45); for (const s of j) go(s.pos.x - s.dir.x * 0.8, s.pos.z - s.dir.z * 0.8); return g.clueFound.has('kurai') && (g.kit.arrows >= 2 || 'arrows ' + g.kit.arrows)`],
+  ['Azamat’s blue threads along the way are each noticed', `for (const t of g.level.threads) { const d = g.field.sample(t.x, t.z); const e = 0.4; const gx = g.field.sample(t.x + e, t.z) - g.field.sample(t.x - e, t.z); const gz = g.field.sample(t.x, t.z + e) - g.field.sample(t.x, t.z - e); const l = Math.hypot(gx, gz) || 1; go(t.x + (gx / l) * 1.5, t.z + (gz / l) * 1.5); void d } return g.threadsSeen.size === g.level.threads.length || 'seen ' + g.threadsSeen.size + ' of ' + g.level.threads.length`],
+  ['TRG_CH1_SHURALE_START: roots close, Shurale jumps down', `const gt = g.level.gate.center; go(gt.x, gt.z + 3); go(gt.x, gt.z - 2); step(2); skip(); step(2.5); return g.level.gate.closed && g.boss.fightStarted && g.boss.airY === 0`],
+  ['Shurale: an arrow in the horn bursts the stump', `const b = g.boss; calm(); go(b.pos.x, b.pos.z + 9); b.atkCd = 0; b.logCd = 0; b.grabCd = 99; let ok = false; for (let i = 0; i < 40 && !ok; i++) { step(0.1); calm(); ok = b.state === 'special' && b.sub === 'log' } if (!ok) return false; const hp = b.hp; b.onArrow(b.pos.x + Math.sin(b.facing) * 3, b.pos.z + Math.cos(b.facing) * 3); return b.hp < hp`],
+  ['Shurale phase 2: up into a pine; Susar points; an arrow knocks him down', `const b = g.boss; step(2.5); b.hp = 440; b.atkCd = 5; step(3); b.leapCd = 0; go(b.pos.x + 7, b.pos.z); for (let i = 0; i < 40 && !b.perch; i++) { step(0.1); calm() } const pointed = !!g.marten.pointAt; const hit = b.perch && g.arrowProbe(b.perch.clone()); step(0.6); return b.phase === 2 && pointed && hit && b.finishable`],
+  ['Shurale: the roots burn in the vessel’s flash', `const b = g.boss; step(3.6); b.rootCd = 0; b.leapCd = 99; b.atkCd = 0; calm(); for (let i = 0; i < 40 && g.roots.length === 0; i++) { step(0.1); calm() } const n = g.roots.length; g.vesselFlash(g.player.pos); return n > 0 && g.roots.every((r) => r.t < 0)`],
+  ['TRG_CH1_SHURALE_END: his last words, Azamat climbs down, the epilogue', `const b = g.boss; b.hp = 1; b.takeHit(50, 0, b.pos.x + 1, b.pos.z, 0, false, 'melee'); step(0.5); const scene = !!g.cine; skip(); step(1); return !b.alive && scene && !!g.azamat`],
+  ['all 12 zones were announced', `return g.zonesSeen.size === 12 || 'seen ' + g.zonesSeen.size`],
+]
+
+await playtest({ url, steps: STEPS, title: 'chapter 1' })

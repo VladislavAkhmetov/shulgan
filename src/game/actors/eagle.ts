@@ -7,6 +7,8 @@ import { EagleRig } from './eagleRig'
 /**
  * Kara the golden eagle: rises above the hero, reveals every creature nearby as a warm ghost
  * silhouette through the darkness, then dives at the closest one.
+ * In game: «Коготь с неба» (docs/COMPANION.md) — off the glove straight at the chosen enemy
+ * or rising and stooping, breaking wind-ups and leaving a white mark.
  */
 export class Eagle {
   readonly group = new THREE.Group()
@@ -37,14 +39,14 @@ export class Eagle {
     w.scene.add(this.group)
   }
 
-  release(from: THREE.Vector3) {
+  release(from: THREE.Vector3, target: Enemy | null = null) {
     this.active = true
     this.t = 0
     this.phase = 'rise'
     this.from.copy(from)
     this.group.visible = true
     this.group.position.copy(from)
-    this.target = null
+    this.target = target
     this.attacked = false
     this.heading = this.w.player.aimAngle
     this.group.rotation.set(-.45, this.heading, 0, 'YXZ')
@@ -61,6 +63,7 @@ export class Eagle {
     let clip = 'climb'
     let clipTime = this.t
     this.prev.copy(g.position)
+
     if (this.phase === 'rise') {
       const k = Math.min(1, this.t / 0.7)
       g.position.set(this.from.x, this.from.y + k * 8, this.from.z)
@@ -69,17 +72,14 @@ export class Eagle {
         this.t = 0
         this.center.copy(p)
         this.circleFrom.copy(g.position)
-        let n = 0
         for (const e of w.enemies) {
           if (!e.alive) continue
           if (e.pos.distanceTo(p) < 24) {
             e.revealT = 6
-            n++
           }
         }
         w.vfx.rings.spawn(p.x, p.z, { from: 1, to: 24, dur: 1.2, color: new THREE.Color(1.2, 0.75, 0.3), width: 0.02 })
         w.sound('eagle', g.position, { indicate: false, vol: 0.6 })
-        void n
       }
     } else if (this.phase === 'circle') {
       this.center.lerp(p, 1 - Math.exp(-2 * dt))
@@ -92,14 +92,16 @@ export class Eagle {
       )
       clip = 'circle_left'
       if (this.t > 1.3) {
-        let best: Enemy | null = null
-        let bd = 18
-        for (const e of w.enemies) {
-          if (!e.alive || e.hidden || e.state === 'dormant') continue
-          const d = e.pos.distanceTo(p)
-          if (d < bd) {
-            bd = d
-            best = e
+        let best: Enemy | null = this.target && this.target.alive && !this.target.hidden && this.target.state !== 'dormant' ? this.target : null
+        if (!best) {
+          let bd = 18
+          for (const e of w.enemies) {
+            if (!e.alive || e.hidden || e.state === 'dormant' || (e as any).cloakedNow) continue
+            const d = e.pos.distanceTo(p)
+            if (d < bd) {
+              bd = d
+              best = e
+            }
           }
         }
         this.target = best
@@ -111,19 +113,21 @@ export class Eagle {
       const tg = this.target
       const k = Math.min(1, this.t / 0.5)
       if (tg) {
-        this.diveTo.set(tg.pos.x, 1.3 + tg.airY, tg.pos.z)
+        this.diveTo.set(tg.pos.x, 1.3 + (tg.airY ?? 0), tg.pos.z)
         g.position.lerpVectors(this.from, this.diveTo, k * k)
       }
       clip = this.t < .2 ? 'dive' : 'talon_strike'
       clipTime = this.t < .2 ? this.t / .2 * .5 : this.t - .2
       if (k >= 1) {
         if (tg && tg.alive && !tg.hidden) {
-          if (tg.takeHit(14, 18, g.position.x, g.position.z, 3, false, 'eagle')) w.player.noteTool('eagle')
+          if ((tg as any).eagleStrike) (tg as any).eagleStrike()
+          if (tg.takeHit(14, 18, g.position.x, g.position.z, 3, false, 'eagle')) (w.player as any).noteTool?.('eagle')
+          if ((tg as any).mark) (tg as any).mark('white', 3)
           tg.stun(tg.kind === 'boss' ? 0.6 : 1.6)
-          tg.revealT = Math.max(tg.revealT, 3)
+          tg.revealT = Math.max(tg.revealT, 4)
           w.sound('eagle', tg.pos, { indicate: false })
           w.sound('hit', tg.pos, { indicate: false, vol: 0.6 })
-          for (let i = 0; i < 18; i++) w.vfx.soft.spawn({ x: tg.pos.x, y: 1.4, z: tg.pos.z, vx: rand(-3, 3), vy: rand(0, 3), vz: rand(-3, 3), r: 0.3, g: 0.2, b: 0.1, a: 0.9, size: 0.12, life: 1.2, drag: 2, gravity: 2 })
+          for (let i = 0; i < 18; i++) w.vfx.soft.spawn({ x: tg.pos.x, y: 1.4 + (tg.airY ?? 0), z: tg.pos.z, vx: rand(-3, 3), vy: rand(0, 3), vz: rand(-3, 3), r: 0.3, g: 0.2, b: 0.1, a: 0.9, size: 0.12, life: 1.2, drag: 2, gravity: 2 })
         }
         this.phase = 'leave'
         this.attacked = true
@@ -141,6 +145,7 @@ export class Eagle {
         g.visible = false
       }
     }
+
     const vel = this.velocity.copy(g.position).sub(this.prev)
     const flat = Math.hypot(vel.x, vel.z)
     if (flat > 1e-6) this.heading = Math.atan2(vel.x, vel.z)

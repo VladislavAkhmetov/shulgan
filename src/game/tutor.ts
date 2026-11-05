@@ -4,16 +4,29 @@
 export interface Tally {
   moved: number
   turned: number
-  sense: number
-  clues: number
-  suma: number
+  /** the coal is in the vessel: 0 or 1 */
+  ember: number
+  /** seconds of the heat focus */
+  focus: number
   attacks: number
   dodges: number
-  stance: number
-  sips: number
+  /** seconds behind the kalkan */
+  guard: number
+  parries: number
+  bashes: number
+  /** the bow is out: 0 or 1 */
+  bow: number
+  /** seconds drawing */
+  draw: number
+  shots: number
+  breaths: number
+  /** times Azamat played the kurai */
+  kurai: number
+  /** seconds of the blood sense (chapter 3, without the vessel) */
+  sense: number
 }
 
-export const zeroTally = (): Tally => ({ moved: 0, turned: 0, sense: 0, clues: 0, suma: 0, attacks: 0, dodges: 0, stance: 0, sips: 0 })
+export const zeroTally = (): Tally => ({ moved: 0, turned: 0, ember: 0, focus: 0, attacks: 0, dodges: 0, guard: 0, parries: 0, bashes: 0, bow: 0, draw: 0, shots: 0, breaths: 0, kurai: 0, sense: 0 })
 
 interface Step {
   id: string
@@ -26,30 +39,50 @@ interface Step {
   progress?: (d: Tally) => number
 }
 
-export type LessonId = 'path' | 'fight' | 'wounds'
+export type LessonId = 'path' | 'fight' | 'parry' | 'bow' | 'wounds' | 'kurai' | 'sense'
 
 const LESSONS: Record<LessonId, { title: string; steps: Step[] }> = {
   path: {
     title: 'Первые шаги',
     steps: [
-      { id: 'move', keys: ['W', 'A', 'S', 'D'], title: 'Идти', text: 'Пройди немного от костра.', done: (d) => d.moved >= 5, progress: (d) => d.moved / 5 },
-      { id: 'look', keys: ['Мышь'], title: 'Смотреть', text: 'Тимер видит только то, что перед ним. Обернись: что за спиной?', done: (d) => d.turned >= Math.PI * 1.5, progress: (d) => d.turned / (Math.PI * 1.5) },
-      { id: 'sense', keys: ['V'], title: 'Чутьё — держать', text: 'Следы на земле засветятся, знаки замерцают.', done: (d) => d.sense >= 1.5, progress: (d) => d.sense / 1.5 },
-      { id: 'clue', keys: ['F'], title: 'Осмотреть знак', text: 'Подойди к мерцающему знаку. Знаки скажут, кто увёл семью.', done: (_d, t) => t.clues >= 1 },
-      { id: 'suma', keys: ['Tab'], title: 'Сума', text: 'В разделе «Следы» — что уже известно и чего не хватает.', done: (d) => d.suma >= 1 },
+      { id: 'move', keys: ['W', 'A', 'S', 'D'], title: 'Идти', text: 'Подойди к юрте.', done: (d) => d.moved >= 5, progress: (d) => d.moved / 5 },
+      { id: 'look', keys: ['Мышь'], title: 'Смотреть', text: 'Алдар видит только то, что перед ним. Обернись: что за спиной?', done: (d) => d.turned >= Math.PI * 1.5, progress: (d) => d.turned / (Math.PI * 1.5) },
+      { id: 'ember', keys: ['E'], title: 'Последний уголь', text: 'Внутри юрты, под перевёрнутым казаном, ещё тлеет уголь родного очага.', done: (_d, t) => t.ember >= 1 },
+      { id: 'focus', keys: ['F'], title: 'Фокус жара — держать', text: 'Жар сосуда на поясе проявит следы в грязи.', done: (d) => d.focus >= 1.5, progress: (d) => d.focus / 1.5 },
     ],
   },
   fight: {
     title: 'Бой',
     steps: [
-      { id: 'attack', keys: ['ЛКМ'], title: 'Удар', text: 'Туда, куда смотрит Тимер. Бей подряд: каждый следующий удар сильнее.', done: (d) => d.attacks >= 3, progress: (d) => d.attacks / 3 },
-      { id: 'dodge', keys: ['Пробел'], title: 'Рывок', text: 'В рывке Тимера не задеть. Ромбы внизу слева — сколько рывков в запасе.', done: (d) => d.dodges >= 1 },
-      { id: 'stance', keys: ['Shift'], title: 'Стойка — держать', text: 'Тимер стоит лицом к врагу и не теряет его из виду.', done: (d) => d.stance >= 0.8, progress: (d) => d.stance / 0.8 },
+      { id: 'attack', keys: ['ЛКМ'], title: 'Серия кылыса', text: 'Три удара подряд, каждый сильнее прежнего.', done: (d) => d.attacks >= 3, progress: (d) => d.attacks / 3 },
+      { id: 'guard', keys: ['ПКМ'], title: 'Калкан — держать', text: 'Щит принимает удар целиком, но тратит запал.', done: (d) => d.guard >= 0.8, progress: (d) => d.guard / 0.8 },
+      { id: 'dodge', keys: ['Пробел'], title: 'Перекат', text: 'В перекате Алдара не задеть. Красный блик — только так.', done: (d) => d.dodges >= 1 },
+      { id: 'bash', keys: ['Shift', 'ЛКМ'], title: 'Удар щитом', text: 'Кромкой калкана: отбрасывает и сбивает защиту. В блоке — [E].', done: (d) => d.bashes >= 1 },
     ],
+  },
+  parry: {
+    title: 'Калкан',
+    steps: [{ id: 'parry', keys: ['ПКМ'], title: 'Парирование', text: 'Подними щит в миг удара: враг потеряет равновесие, сразу [ЛКМ] — ответное рассечение.', done: (d) => d.parries >= 1 }],
+  },
+  bow: {
+    title: 'Лук йәйә',
+    steps: [
+      { id: 'stance', keys: ['2', 'Tab'], title: 'Стойка с луком', text: 'Или [Tab]. Стрел мало: их можно выдернуть из тел и деревьев, о камень они ломаются.', done: (_d, t) => t.bow >= 1 },
+      { id: 'draw', keys: ['ПКМ'], title: 'Натянуть — держать', text: 'На пике натяжения линия вспыхнет: в этот миг выстрел пробивает насквозь.', done: (d) => d.draw >= 0.6, progress: (d) => d.draw / 0.6 },
+      { id: 'shot', keys: ['ЛКМ'], title: 'Выстрел', text: 'Не отпуская [ПКМ].', done: (d) => d.shots >= 1 },
+    ],
+  },
+  kurai: {
+    title: 'Азамат',
+    steps: [{ id: 'kurai', keys: ['Q'], title: 'Зов курая', text: 'Сын играет: броня духов трескается, древние камни отвечают голосами прошлого. Курай отдыхает 10 секунд.', done: (d) => d.kurai >= 1 }],
+  },
+  sense: {
+    title: 'Без огня',
+    steps: [{ id: 'sense', keys: ['F'], title: 'Чутьё крови — держать', text: 'Живая вода в крови Алдара тянется к роднику: серебряные искры показывают тропу.', done: (d) => d.sense >= 1.2, progress: (d) => d.sense / 1.2 }],
   },
   wounds: {
     title: 'Раны',
-    steps: [{ id: 'sip', keys: ['R'], title: 'Глоток живой воды', text: 'Капли внизу слева. Родник наполнит их снова.', done: (d) => d.sips >= 1 }],
+    steps: [{ id: 'breath', keys: ['V'], title: 'Перевести дух — держать', text: 'Сгорает 50 запала, возвращается здоровье. Старый ключ лечит полностью.', done: (d) => d.breaths >= 1 }],
   },
 }
 

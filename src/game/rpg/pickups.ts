@@ -1,16 +1,16 @@
 import * as THREE from 'three'
-import type { ItemId } from './data'
+import type { Keepsake } from './state'
 import { glow, std } from '../render/materials'
 
-export type PickupKind = 'pouch' | 'amulet' | 'bottle' | 'drop'
+/** quiver: a pouch of arrows · keepsake: a charm · upgrade: the old quiver (5 → 8) */
+export type PickupKind = 'quiver' | 'keepsake' | 'upgrade'
 
+/** A cache taken with [E] (docs/LEVELS.md, TRG_ARROW_PICKUP): arrows, a keepsake, the old quiver. */
 export interface Pickup {
   pos: THREE.Vector3
-  items: [ItemId, number][]
-  oil: number
+  arrows: number
+  keepsake: Keepsake | null
   label: string
-  /** walked over = taken (enemy drops); otherwise F */
-  auto: boolean
   kind: PickupKind
   mesh: THREE.Object3D
   taken: boolean
@@ -19,72 +19,48 @@ export interface Pickup {
 
 const leather = std(0x4a3220, 0.85)
 const strap = std(0x2a1c12, 0.9)
-const glass = new THREE.MeshStandardMaterial({
-  color: 0x8a5a20,
-  roughness: 0.2,
-  metalness: 0,
-  emissive: new THREE.Color(0.25, 0.12, 0.02),
-})
-const amuletGlow = glow(1.6, 0.9, 0.4)
-const dropGlow = new THREE.MeshBasicMaterial({
-  color: new THREE.Color(0.5, 0.32, 0.12),
-  transparent: true,
-  opacity: 0.6,
-  blending: THREE.AdditiveBlending,
-  depthWrite: false,
-})
+const shaftMat = std(0x6b5236, 0.8)
+const charmGlow = glow(1.6, 0.9, 0.4)
+const halo = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 0.32, 0.12), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })
 
-function pouchMesh(scale = 1) {
+/** a leather quiver leaning on something, a few shafts out of its mouth */
+function quiverMesh(old: boolean) {
   const g = new THREE.Group()
-  const bag = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), leather)
-  bag.scale.set(1, 0.75, 0.8)
-  bag.position.y = 0.12
-  const neck = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.05, 0.08, 0.08, 8),
-    strap,
-  )
-  neck.position.y = 0.25
-  g.add(bag, neck)
-  g.scale.setScalar(scale)
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.55, 8), old ? std(0x2e2218, 0.95) : leather)
+  body.position.y = 0.27
+  body.rotation.z = 0.35
+  g.add(body)
+  for (let i = 0; i < 4; i++) {
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.4, 4), shaftMat)
+    s.position.set(0.13 + (i - 1.5) * 0.015, 0.62, (i % 2) * 0.02)
+    s.rotation.z = 0.35
+    g.add(s)
+  }
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.012, 4, 10), strap)
+  band.rotation.set(Math.PI / 2, 0.35, 0)
+  band.position.set(0.05, 0.4, 0)
+  g.add(band)
+  if (old) {
+    // Aisylu's kind of tassel: blue wool on the old quiver too
+    const tassel = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.12, 5), std(0x2c5cb0, 0.8, { emissive: 0x0a1a3a }))
+    tassel.position.set(-0.02, 0.3, 0.09)
+    g.add(tassel)
+  }
   g.traverse((o) => (o.castShadow = true))
   return g
 }
 
-function bottleMesh() {
+function charmMesh() {
   const g = new THREE.Group()
-  const b = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.07, 0.09, 0.24, 10),
-    glass,
-  )
-  b.position.y = 0.12
-  const cork = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.03, 0.035, 0.06, 6),
-    strap,
-  )
-  cork.position.y = 0.27
-  g.add(b, cork)
-  g.rotation.z = 0.25
-  return g
-}
-
-function amuletMesh() {
-  const g = new THREE.Group()
-  const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(0.09, 0.015, 6, 16),
-    amuletGlow,
-  )
-  const charm = new THREE.Mesh(
-    new THREE.ConeGeometry(0.03, 0.12, 5),
-    amuletGlow,
-  )
-  charm.position.y = -0.11
-  charm.rotation.x = Math.PI
-  g.add(ring, charm)
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.015, 6, 16), charmGlow)
+  const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.12, 5), charmGlow)
+  tooth.position.y = -0.11
+  tooth.rotation.x = Math.PI
+  g.add(ring, tooth)
   g.position.y = 0.6
   return g
 }
 
-/** Things to pick up: story finds, caches, enemy drops. */
 export class Pickups {
   readonly list: Pickup[] = []
   private root = new THREE.Group()
@@ -93,39 +69,17 @@ export class Pickups {
     scene.add(this.root)
   }
 
-  spawn(
-    pos: THREE.Vector3,
-    items: [ItemId, number][],
-    opts: { label: string; kind: PickupKind; oil?: number; onTake?: () => void },
-  ) {
+  spawn(pos: THREE.Vector3, opts: { label: string; kind: PickupKind; arrows?: number; keepsake?: Keepsake; onTake?: () => void; hidden?: boolean }) {
     const holder = new THREE.Group()
     holder.position.set(pos.x, 0, pos.z)
-    let mesh: THREE.Object3D
-    if (opts.kind === 'amulet') mesh = amuletMesh()
-    else if (opts.kind === 'bottle') mesh = bottleMesh()
-    else mesh = pouchMesh(opts.kind === 'drop' ? 0.7 : 1)
-    holder.add(mesh)
+    holder.add(opts.kind === 'keepsake' ? charmMesh() : quiverMesh(opts.kind === 'upgrade'))
     // a faint glint so finds read in the dark
-    const halo = new THREE.Mesh(
-      new THREE.CircleGeometry(opts.kind === 'amulet' ? 0.6 : 0.35, 16).rotateX(
-        -Math.PI / 2,
-      ),
-      dropGlow,
-    )
-    halo.position.y = 0.03
-    holder.add(halo)
+    const h = new THREE.Mesh(new THREE.CircleGeometry(opts.kind === 'keepsake' ? 0.6 : 0.4, 16).rotateX(-Math.PI / 2), halo)
+    h.position.y = 0.03
+    holder.add(h)
+    holder.visible = !opts.hidden
     this.root.add(holder)
-    const p: Pickup = {
-      pos: holder.position.clone(),
-      items,
-      oil: opts.oil ?? 0,
-      label: opts.label,
-      auto: opts.kind === 'drop',
-      kind: opts.kind,
-      mesh: holder,
-      taken: false,
-      onTake: opts.onTake,
-    }
+    const p: Pickup = { pos: holder.position.clone(), arrows: opts.arrows ?? 0, keepsake: opts.keepsake ?? null, label: opts.label, kind: opts.kind, mesh: holder, taken: false, onTake: opts.onTake }
     this.list.push(p)
     return p
   }
@@ -137,7 +91,7 @@ export class Pickups {
 
   update(time: number) {
     for (const p of this.list) {
-      if (p.taken || p.kind !== 'amulet') continue
+      if (p.taken || p.kind !== 'keepsake') continue
       const m = p.mesh.children[0]
       m.position.y = 0.6 + Math.sin(time * 2 + p.pos.x) * 0.06
       m.rotation.y = time * 1.2
