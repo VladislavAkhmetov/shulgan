@@ -7,6 +7,7 @@ import { Epilogue, LorePage, Prologue } from './Prologue'
 import { KEEPSAKES } from '../game/rpg/state'
 import { CHAPTERS, loadProgress, type Progress } from '../game/chapters'
 import { ENDINGS } from '../game/script'
+import { MenuBackdrop } from './MenuBackdrop'
 
 // docs/ROADMAP.md, «Управление»
 const CONTROLS: [string, string][] = [
@@ -70,7 +71,8 @@ function Title({ game, onContinue }: { game: Game; onContinue: (p: Progress) => 
   const [i, setI] = useNav({ count: items.length, enabled: !controls, onOk: (k) => items[k].run() })
   useNav({ count: 0, enabled: controls, onOk: () => setControls(false), onBack: () => setControls(false) })
   return (
-    <div className="absolute inset-0 select-none bg-[radial-gradient(ellipse_at_50%_42%,rgba(2,3,6,0.25)_0%,rgba(2,3,6,0.7)_50%,rgba(2,3,6,0.97)_88%)]">
+    <div className="absolute inset-0 isolate overflow-hidden select-none bg-[#020306]">
+      <MenuBackdrop dim={controls} />
       <div className="anim-fade-up absolute inset-x-0 top-[17vh] flex flex-col items-center">
         <Seal size={58} />
         <h1 className="mt-6 font-display text-[clamp(84px,11vw,148px)] leading-[0.9] tracking-[0.08em] text-bone [text-shadow:0_4px_40px_rgba(0,0,0,0.9)]">АМАНАТ</h1>

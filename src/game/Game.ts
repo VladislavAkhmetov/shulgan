@@ -1592,13 +1592,16 @@ export class Game implements World {
     const simulate = screen === 'playing' || screen === 'dead' || screen === 'victory' || screen === 'epilogue' || screen === 'ending'
     const modal = !!this.choiceDrop || this.loreOpen || this.finalOpen
     this.input.enabled = screen === 'playing' && !modal && this.player.alive && !this.cine
-    if (simulate && !modal) this.update(rdt)
-    else this.idle(rdt)
-    this.render(rdt)
+    // The title has its own video backdrop; skip the world and vision passes.
+    if (screen !== 'title') {
+      if (simulate && !modal) this.update(rdt)
+      else this.idle(rdt)
+      this.render(rdt)
+    }
     this.input.endFrame()
   }
 
-  /** Title / pause: keep the world breathing without simulating gameplay. */
+  /** Pause / story screens: keep the world breathing without simulating gameplay. */
   private idle(rdt: number) {
     globalUniforms.uTime.value += rdt
     shaftTime.value += rdt
